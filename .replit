@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["alsa-lib", "dbus", "fontconfig", "freetype", "glib", "libGL", "libGLU", "libxkbcommon", "mesa", "nss", "wayland", "xorg.libX11", "xorg.libXScrnSaver", "xorg.libXcomposite", "xorg.libXcursor", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXi", "xorg.libXrandr", "xorg.libXtst", "zstd", "gcc-unwrapped", "libatomic_ops", "libdrm", "libglvnd"]
+packages = ["alsa-lib", "dbus", "fontconfig", "freetype", "gcc-unwrapped", "glib", "libGL", "libGLU", "libatomic_ops", "libdrm", "libglvnd", "libxkbcommon", "mesa", "nss", "wayland", "xorg.libX11", "xorg.libXScrnSaver", "xorg.libXcomposite", "xorg.libXcursor", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXi", "xorg.libXrandr", "xorg.libXtst", "zstd"]
 
 [workflows]
 runButton = "Project"

@@ -91,8 +91,8 @@ def run_minimal_gui_test() -> bool:
 
 def create_gui_application():
     """Create and run the GUI application"""
-    # Safety check for Replit environment
-    if "REPLIT" in os.environ or "REPL_ID" in os.environ:
+    # Safety check for Replit environment (only when not forcing GUI mode)
+    if ("REPLIT" in os.environ or "REPL_ID" in os.environ) and "--gui" not in sys.argv:
         if not os.environ.get("ALLOW_UNSAFE_GUI"):
             print("ERROR: GUI mode is not supported in the Replit environment.")
             print("This is due to missing system dependencies for Qt6/QtWebEngine.")
