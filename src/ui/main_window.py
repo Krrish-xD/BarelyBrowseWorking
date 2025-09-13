@@ -94,6 +94,9 @@ class MainWindow(QMainWindow):
         self.notepads: Dict[int, NotepadWidget] = {}
         self.current_workspace = 0
         
+        # Initialize workspace names early to avoid initialization errors
+        self.workspace_names = [f"Workspace {i+1}" for i in range(NUM_WORKSPACES)]
+        
         # Change tracking flags
         self.session_dirty = False
         self.notepad_dirty = False
@@ -153,9 +156,6 @@ class MainWindow(QMainWindow):
         self.workspace_pill = self.create_workspace_pill()
         
         layout.addWidget(content_container)
-        
-        # Store workspace names for minimal display
-        self.workspace_names = [f"Workspace {i+1}" for i in range(NUM_WORKSPACES)]
         
     def create_workspace_pill(self) -> QWidget:
         """Create the floating workspace indicator pill"""
