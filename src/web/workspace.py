@@ -29,16 +29,47 @@ class SecurePage(QWebEnginePage):
         self.oauth_handler = OAuthHandler(self)
         self.security_interceptor = SecurityInterceptor(self)
         
+        # Flag to suppress security dialogs (for popups)
+        self.suppress_security_dialogs = False
+        
 # OAuth notification signals removed
     
     def acceptNavigationRequest(self, url: QUrl, nav_type, is_main_frame: bool) -> bool:
         """Override navigation request handling with security and OAuth checks"""
         url_str = url.toString()
         
-        # Check for dangerous schemes first
-        if self.security_interceptor.should_block_url(url_str):
-            # Block silently - notifications removed
-            return False
+        # Check security (schemes and domains)
+        should_block, reason = self.security_interceptor.should_block_url(url_str)
+        
+        if should_block:
+            # If it's a scheme issue or dangerous scheme, block silently
+            if "not allowed" in reason.lower() or any(term in reason.lower() for term in ['scheme', 'internal pages']):
+                return False
+            
+            # If it's a domain issue and we have a main window, show warning dialog (unless suppressed)
+            if "not in allowlist" in reason.lower() and is_main_frame and not self.suppress_security_dialogs:
+                domain = self.security_interceptor.get_domain_from_url(url_str)
+                if domain:
+                    # Show warning dialog
+                    from ..ui.security_dialog import DomainWarningDialog
+                    dialog = DomainWarningDialog(url_str, domain, self.parent())
+                    
+                    if dialog.exec() == dialog.Accepted:
+                        choice = dialog.get_choice()
+                        if choice == dialog.ALLOW_ONCE:
+                            # Allow for this session
+                            self.security_interceptor.allow_domain_once(domain)
+                            return True
+                        elif choice == dialog.ADD_TO_ALLOWLIST:
+                            # Add to permanent allowlist
+                            self.security_interceptor.add_domain_to_allowlist(domain)
+                            return True
+                    
+                    # User cancelled or dialog failed
+                    return False
+            else:
+                # Block other types silently
+                return False
         
         # Check for OAuth redirects on main frame navigation
         if is_main_frame and self.oauth_handler.handle_navigation_request(url_str):
@@ -63,6 +94,9 @@ class SecurePage(QWebEnginePage):
         # Create a new secure page with same profile for popup
         popup_page = SecurePage(self.profile(), self.parent())
         
+        # Suppress security dialogs for popups (block silently)
+        popup_page.suppress_security_dialogs = True
+        
 # Popup OAuth notifications removed
         
         # Override the popup's acceptNavigationRequest to handle OAuth immediately
@@ -71,6 +105,13 @@ class SecurePage(QWebEnginePage):
         def popup_navigation_handler(url, nav_type, is_main_frame):
             """Enhanced navigation handler for popup windows"""
             url_str = url.toString()
+            
+            # Check security first
+            should_block, reason = self.security_interceptor.should_block_url(url_str)
+            if should_block:
+                # For popups, be more restrictive - don't show dialogs, just block
+                popup_page.deleteLater()
+                return False
             
             # For popups, check OAuth redirects immediately on ANY navigation
             # (not just main frame like in regular tabs)
@@ -123,6 +164,33 @@ class ChatGPTWebView(QWebEngineView):
         if os.environ.get("QTWEBENGINE_DISABLE_SANDBOX") == "1":
             # Only in headless CI environments
             pass
+        
+        # Block permissions permanently as requested by user
+        settings = self.page().settings()
+        
+        # Disable plugins
+        settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
+        
+        # Block mixed content
+        settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, False)
+        
+        # Connect permission requests to permanently deny them
+        profile = self.page().profile()
+        profile.downloadRequested.connect(self._block_download)
+        
+        # Override permission requests
+        self.page().featurePermissionRequested.connect(self._handle_permission_request)
+    
+    def _block_download(self, download):
+        """Block all downloads permanently"""
+        download.cancel()
+    
+    def _handle_permission_request(self, url, feature):
+        """Handle permission requests - deny all as requested"""
+        from PyQt6.QtWebEngineCore import QWebEnginePage
+        
+        # Always deny all permission requests
+        self.page().setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionDeniedByUser)
         
         # Use default user agent for better compatibility
     
