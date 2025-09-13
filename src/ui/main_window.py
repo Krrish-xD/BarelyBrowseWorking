@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFrame, QPushButton, QStackedWidget, QMenu,
     QDialog, QLineEdit, QLabel, QDialogButtonBox,
-    QSplitter
+    QSplitter, QColorDialog
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QFont
@@ -25,10 +25,11 @@ from .animated_widgets import AnimatedStackedWidget, SplitterAnimator
 class WorkspaceRenameDialog(QDialog):
     """Dialog for renaming workspaces"""
     
-    def __init__(self, current_name: str, parent=None):
+    def __init__(self, current_name: str, current_color: str = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Rename Workspace")
+        self.setWindowTitle("Customize Workspace")
         self.setModal(True)
+        self.selected_color = current_color
         self.setup_ui(current_name)
         self.setup_style()
     
@@ -36,10 +37,29 @@ class WorkspaceRenameDialog(QDialog):
         """Setup dialog UI"""
         layout = QVBoxLayout(self)
         
+        # Name section
         self.name_edit = QLineEdit(current_name)
         self.name_edit.selectAll()
         layout.addWidget(QLabel("Workspace Name:"))
         layout.addWidget(self.name_edit)
+        
+        # Color section
+        layout.addWidget(QLabel("Workspace Color:"))
+        color_layout = QHBoxLayout()
+        
+        # Color preview button
+        self.color_button = QPushButton()
+        self.color_button.setMinimumSize(40, 30)
+        self.color_button.clicked.connect(self.choose_color)
+        self.update_color_button()
+        color_layout.addWidget(self.color_button)
+        
+        # Reset color button
+        reset_button = QPushButton("Reset to Default")
+        reset_button.clicked.connect(self.reset_color)
+        color_layout.addWidget(reset_button)
+        
+        layout.addLayout(color_layout)
         
         # Buttons
         buttons = QDialogButtonBox(
@@ -49,6 +69,42 @@ class WorkspaceRenameDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+    
+    def choose_color(self):
+        """Open color picker dialog"""
+        from PyQt6.QtGui import QColor
+        current_color = QColor(self.selected_color) if self.selected_color else QColor(COLORS['accent'])
+        color = QColorDialog.getColor(current_color, self, "Choose Workspace Color")
+        if color.isValid():
+            self.selected_color = color.name()
+            self.update_color_button()
+    
+    def reset_color(self):
+        """Reset color to default"""
+        self.selected_color = None
+        self.update_color_button()
+    
+    def update_color_button(self):
+        """Update the color preview button"""
+        if self.selected_color:
+            self.color_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {self.selected_color};
+                    border: 2px solid {COLORS['text']};
+                    border-radius: 4px;
+                }}
+            """)
+            self.color_button.setText("")
+        else:
+            self.color_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLORS['accent']};
+                    border: 2px solid {COLORS['text']};
+                    border-radius: 4px;
+                    color: {COLORS['text']};
+                }}
+            """)
+            self.color_button.setText("Default")
     
     def setup_style(self):
         """Apply dark theme styling"""
@@ -162,24 +218,38 @@ class MainWindow(QMainWindow):
         return self.workspace_names[self.current_workspace]
     
     def rename_current_workspace(self):
-        """Show rename dialog for current workspace"""
+        """Show customize dialog for current workspace"""
         current_name = self.get_current_workspace_name()
         
-        dialog = WorkspaceRenameDialog(current_name, self)
+        # Get current workspace data to retrieve current color
+        workspace_widget = self.workspaces.get(self.current_workspace)
+        current_color = workspace_widget.workspace_data.color if workspace_widget else None
+        
+        dialog = WorkspaceRenameDialog(current_name, current_color, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_name = dialog.name_edit.text().strip()
-            if new_name and new_name != current_name:
-                # Update workspace name
-                self.workspace_names[self.current_workspace] = new_name
-                
-                # Update window title and corner widget
-                self.update_window_title()
+            new_color = dialog.selected_color
+            
+            name_changed = new_name and new_name != current_name
+            color_changed = new_color != current_color
+            
+            if name_changed or color_changed:
+                if name_changed:
+                    # Update workspace name
+                    self.workspace_names[self.current_workspace] = new_name
+                    self.update_window_title()
                 
                 # Update current workspace data and save
-                workspace_widget = self.workspaces.get(self.current_workspace)
                 if workspace_widget:
-                    # Update the workspace data name
-                    workspace_widget.workspace_data.name = new_name
+                    if name_changed:
+                        workspace_widget.workspace_data.name = new_name
+                    if color_changed:
+                        workspace_widget.workspace_data.color = new_color
+                        # Apply the new color theme immediately
+                        workspace_widget.update_workspace_name(
+                            workspace_widget.workspace_data.name, 
+                            workspace_widget.workspace_data
+                        )
                     
                     # Mark session as dirty and save all workspace sessions
                     self.session_dirty = True
