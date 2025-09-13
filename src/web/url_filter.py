@@ -2,12 +2,14 @@
 URL filtering to restrict navigation to ChatGPT domains only
 """
 
-from PyQt6.QtCore import QObject, QUrl
+from PyQt6.QtCore import QObject, QUrl, pyqtSignal
 from PyQt6.QtWebEngineCore import QWebEngineUrlRequestInterceptor, QWebEngineUrlRequestInfo
 
 
 class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
     """URL filter to restrict navigation to ChatGPT domains only"""
+    
+    url_blocked = pyqtSignal(str)  # Emitted when a URL is blocked
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,6 +70,9 @@ class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
         # Block if not allowed
         if not allowed:
             info.block(True)
+            # Emit signal for user notification (only for main page navigations, not resources)
+            if info.requestMethod() == b'GET' and info.resourceType() == QWebEngineUrlRequestInfo.ResourceType.ResourceTypeMainFrame:
+                self.url_blocked.emit(host)
             return
         
         # Allow the request explicitly

@@ -228,6 +228,9 @@ class WorkspaceWidget(QWidget):
         url_filter = ChatGPTUrlFilter(self)
         profile.setUrlRequestInterceptor(url_filter)
         
+        # Connect URL blocking notification (if parent is main window)
+        self.url_filter = url_filter  # Store reference for access
+        
         return profile
     
     def setup_ui(self):

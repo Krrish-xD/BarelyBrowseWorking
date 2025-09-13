@@ -17,6 +17,7 @@ from ..paths import get_assets_dir
 from ..storage.session_manager import SessionManager, WorkspaceData
 from ..web.workspace import WorkspaceWidget
 from .notepad import NotepadWidget
+from .notifications import NotificationWidget, StatusIndicator
 
 
 class WorkspaceRenameDialog(QDialog):
@@ -95,6 +96,12 @@ class MainWindow(QMainWindow):
         self.session_dirty = False
         self.notepad_dirty = False
         
+        # Create notification system
+        self.notification_widget = NotificationWidget(self)
+        
+        # Create status indicator for loading progress
+        self.status_indicator = StatusIndicator(self)
+        
         # Auto-save timer
         self.autosave_timer = QTimer()
         self.autosave_timer.timeout.connect(self.save_sessions)
@@ -124,6 +131,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Add status indicator at top (initially hidden)
+        layout.addWidget(self.status_indicator)
+        self.status_indicator.hide()
         
         # Main content area with workspaces (no header)
         self.workspace_stack = QStackedWidget()
@@ -195,12 +206,24 @@ class MainWindow(QMainWindow):
     
     def load_sessions(self):
         """Load workspace sessions"""
-        workspace_data = self.session_manager.load_sessions()
+        # Show status indicator and start loading progress
+        self.status_indicator.show()
+        self.status_indicator.set_status("Initializing workspaces...")
         
-        for workspace_id, data in workspace_data.items():
+        workspace_data = self.session_manager.load_sessions()
+        total_workspaces = len(workspace_data)
+        
+        for i, (workspace_id, data) in enumerate(workspace_data.items(), 1):
+            # Update progress
+            self.status_indicator.set_status(f"Loading workspace {i}/{total_workspaces}...")
             # Create workspace widget
             workspace_widget = WorkspaceWidget(workspace_id, data, self.toggle_current_notepad, self)
             workspace_widget.session_changed.connect(self._mark_session_dirty)
+            
+            # Connect URL blocking notifications
+            if hasattr(workspace_widget, 'url_filter'):
+                workspace_widget.url_filter.url_blocked.connect(self._on_url_blocked)
+            
             self.workspaces[workspace_id] = workspace_widget
             
             # Create notepad widget
@@ -234,6 +257,10 @@ class MainWindow(QMainWindow):
             # Update workspace name
             if workspace_id < len(self.workspace_names):
                 self.workspace_names[workspace_id] = data.name
+        
+        # Hide status indicator and show completion notification
+        self.status_indicator.hide()
+        self.notification_widget.show_notification("✓ All workspaces loaded successfully", 2000)
     
     def _mark_session_dirty(self):
         """Mark session data as dirty (needs saving)"""
@@ -242,6 +269,11 @@ class MainWindow(QMainWindow):
     def _mark_notepad_dirty(self):
         """Mark notepad data as dirty (needs saving)"""
         self.notepad_dirty = True
+    
+    def _on_url_blocked(self, domain: str):
+        """Handle URL blocking notification"""
+        message = f"🚫 Navigation blocked: {domain}\nOnly ChatGPT-related domains are allowed."
+        self.notification_widget.show_notification(message, 4000)
     
     def save_sessions(self):
         """Save current workspace sessions (optimized with change detection)"""
