@@ -279,9 +279,8 @@ class WorkspaceTabWidget(QTabWidget):
         self.setup_corner_widget()
         
         # Apply workspace theme if workspace data has custom colors
-        from . import WorkspaceWidget
         parent_workspace = self.parent()
-        while parent_workspace and not isinstance(parent_workspace, WorkspaceWidget):
+        while parent_workspace and parent_workspace.__class__.__name__ != 'WorkspaceWidget':
             parent_workspace = parent_workspace.parent()
         if parent_workspace and hasattr(parent_workspace, 'workspace_data'):
             self.apply_workspace_theme(parent_workspace.workspace_data)
