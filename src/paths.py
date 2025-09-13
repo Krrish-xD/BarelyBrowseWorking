@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from .config import NUM_WORKSPACES
+
 def get_app_data_dir() -> Path:
     """Get the application data directory for the current platform"""
     try:
@@ -63,7 +65,7 @@ def ensure_directories():
     get_app_data_dir().mkdir(parents=True, exist_ok=True)
     
     # Create workspace directories
-    for i in range(4):  # 4 workspaces
+    for i in range(NUM_WORKSPACES):  # Create directories for all workspaces
         get_workspace_data_dir(i).mkdir(parents=True, exist_ok=True)
         get_workspace_profile_dir(i).mkdir(parents=True, exist_ok=True)
 

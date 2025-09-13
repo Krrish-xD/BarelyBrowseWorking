@@ -10,7 +10,7 @@ from dataclasses import dataclass, asdict
 import hashlib
 
 try:
-    from ..config import CHATGPT_URL, DEFAULT_WORKSPACE_NAMES
+    from ..config import CHATGPT_URL, DEFAULT_WORKSPACE_NAMES, NUM_WORKSPACES
     from ..paths import get_sessions_file, get_workspace_notepad_file, ensure_directories
 except ImportError:
     # Support direct module execution
@@ -136,8 +136,8 @@ class SessionManager:
                     color=data.get('color')
                 )
             
-            # Ensure we have all 4 workspaces
-            for i in range(4):
+            # Ensure we have all workspaces
+            for i in range(NUM_WORKSPACES):
                 if i not in workspaces:
                     workspaces[i] = WorkspaceData(
                         name=DEFAULT_WORKSPACE_NAMES[i],
@@ -164,7 +164,7 @@ class SessionManager:
                 notepad_visible=False,
                 color=None
             )
-            for i in range(4)
+            for i in range(NUM_WORKSPACES)
         }
     
     def backup_sessions(self) -> bool:

@@ -6,7 +6,7 @@ Configuration constants for ChatGPT Browser
 APP_NAME = "ChatGPT Browser"
 APP_ORG = "ChatGPT Browser"
 CHATGPT_URL = "https://chatgpt.com"
-NUM_WORKSPACES = 4
+NUM_WORKSPACES = 5
 AUTOSAVE_INTERVAL_MS = 10 * 60 * 1000  # 10 minutes in milliseconds (reduced SSD wear)
 NOTEPAD_SAVE_DEBOUNCE_MS = 2 * 1000  # 2 second debounce for notepad saves
 

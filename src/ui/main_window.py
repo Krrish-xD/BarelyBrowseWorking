@@ -289,6 +289,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+2"), self, lambda: self.switch_workspace(1))
         QShortcut(QKeySequence("Ctrl+Shift+3"), self, lambda: self.switch_workspace(2))
         QShortcut(QKeySequence("Ctrl+Shift+4"), self, lambda: self.switch_workspace(3))
+        QShortcut(QKeySequence("Ctrl+Shift+5"), self, lambda: self.switch_workspace(4))
     
     def setup_style(self):
         """Apply dark theme styling"""
