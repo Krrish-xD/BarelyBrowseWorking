@@ -419,9 +419,7 @@ class WorkspaceWidget(QWidget):
         web_view.titleChanged.connect(
             lambda title, idx=tab_index: self._update_tab_title(idx, title)
         )
-        web_view.oauth_notification_requested.connect(
-            self.notification_requested.emit
-        )
+        # OAuth notification connection removed as requested
         
         self.session_changed.emit()
         return tab_index
