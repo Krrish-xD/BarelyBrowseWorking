@@ -6,10 +6,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTextEdit, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 
-from ..config import COLORS
+from ..config import COLORS, NOTEPAD_SAVE_DEBOUNCE_MS
 
 
 class NotepadWidget(QWidget):
@@ -23,6 +23,12 @@ class NotepadWidget(QWidget):
         self.setup_ui()
         self.setup_style()
         self._content_changed = False
+        
+        # Debounce timer for efficient saving
+        self._save_timer = QTimer()
+        self._save_timer.setSingleShot(True)
+        self._save_timer.timeout.connect(self._emit_content_changed)
+        self._debounce_delay = NOTEPAD_SAVE_DEBOUNCE_MS
     
     def setup_ui(self):
         """Setup the notepad UI"""
@@ -87,7 +93,14 @@ class NotepadWidget(QWidget):
     def _on_text_changed(self):
         """Mark content as changed when text is modified"""
         self._content_changed = True
-        self.content_changed.emit()
+        # Debounce the save signal to avoid excessive I/O
+        self._save_timer.stop()
+        self._save_timer.start(self._debounce_delay)
+    
+    def _emit_content_changed(self):
+        """Emit content changed signal after debounce delay"""
+        if self._content_changed:
+            self.content_changed.emit()
     
     def set_content(self, content: str):
         """Set notepad content"""

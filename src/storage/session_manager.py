@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
+import hashlib
 
 from ..config import CHATGPT_URL, DEFAULT_WORKSPACE_NAMES
 from ..paths import get_sessions_file, get_workspace_notepad_file, ensure_directories
@@ -34,29 +35,55 @@ class SessionManager:
     
     def __init__(self):
         self.session_file = get_sessions_file()
+        self._last_session_hash = None
+        self._last_notepad_hashes = {}
         ensure_directories()
     
+    def _compute_content_hash(self, content: str) -> str:
+        """Compute hash of content for change detection"""
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
+    
     def save_sessions(self, workspaces: Dict[int, WorkspaceData]) -> bool:
-        """Save workspace sessions to file"""
+        """Save workspace sessions to file (only if changed)"""
         try:
             session_data = {}
+            files_written = 0
             
             for workspace_id, workspace_data in workspaces.items():
-                # Save notepad content to separate file
-                notepad_file = get_workspace_notepad_file(workspace_id)
-                notepad_file.write_text(workspace_data.notepad_content, encoding='utf-8')
+                # Check if notepad content has changed
+                notepad_content = workspace_data.notepad_content
+                notepad_hash = self._compute_content_hash(notepad_content)
                 
-                # Save session data (without notepad content to keep it small)
+                if notepad_hash != self._last_notepad_hashes.get(workspace_id):
+                    # Only write notepad file if content changed
+                    notepad_file = get_workspace_notepad_file(workspace_id)
+                    notepad_file.write_text(notepad_content, encoding='utf-8')
+                    self._last_notepad_hashes[workspace_id] = notepad_hash
+                    files_written += 1
+                
+                # Prepare session data (without notepad content and without timestamp for hash)
                 session_data[str(workspace_id)] = {
                     'name': workspace_data.name,
                     'tabs': [asdict(tab) for tab in workspace_data.tabs],
                     'active_tab': workspace_data.active_tab,
-                    'notepad_visible': workspace_data.notepad_visible,
-                    'last_saved': time.time()
+                    'notepad_visible': workspace_data.notepad_visible
                 }
             
-            with open(self.session_file, 'w', encoding='utf-8') as f:
-                json.dump(session_data, f, indent=2)
+            # Check if session data has changed (compute hash WITHOUT timestamp)
+            session_json = json.dumps(session_data, sort_keys=True)
+            session_hash = self._compute_content_hash(session_json)
+            
+            if session_hash != self._last_session_hash:
+                # Add timestamp only when we decide to write
+                current_time = time.time()
+                for workspace_data in session_data.values():
+                    workspace_data['last_saved'] = current_time
+                
+                # Only write session file if data changed
+                with open(self.session_file, 'w', encoding='utf-8') as f:
+                    json.dump(session_data, f, indent=2)
+                self._last_session_hash = session_hash
+                files_written += 1
             
             return True
             

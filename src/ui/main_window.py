@@ -91,6 +91,10 @@ class MainWindow(QMainWindow):
         self.notepads: Dict[int, NotepadWidget] = {}
         self.current_workspace = 0
         
+        # Change tracking flags
+        self.session_dirty = False
+        self.notepad_dirty = False
+        
         # Auto-save timer
         self.autosave_timer = QTimer()
         self.autosave_timer.timeout.connect(self.save_sessions)
@@ -196,13 +200,13 @@ class MainWindow(QMainWindow):
         for workspace_id, data in workspace_data.items():
             # Create workspace widget
             workspace_widget = WorkspaceWidget(workspace_id, data, self.toggle_current_notepad, self)
-            workspace_widget.session_changed.connect(self.save_sessions)
+            workspace_widget.session_changed.connect(self._mark_session_dirty)
             self.workspaces[workspace_id] = workspace_widget
             
             # Create notepad widget
             notepad_widget = NotepadWidget(self)
             notepad_widget.set_content(data.notepad_content)
-            notepad_widget.content_changed.connect(self.save_sessions)
+            notepad_widget.content_changed.connect(self._mark_notepad_dirty)
             notepad_widget.close_requested.connect(lambda: self.toggle_current_notepad(False))
             self.notepads[workspace_id] = notepad_widget
             
@@ -231,8 +235,21 @@ class MainWindow(QMainWindow):
             if workspace_id < len(self.workspace_names):
                 self.workspace_names[workspace_id] = data.name
     
+    def _mark_session_dirty(self):
+        """Mark session data as dirty (needs saving)"""
+        self.session_dirty = True
+    
+    def _mark_notepad_dirty(self):
+        """Mark notepad data as dirty (needs saving)"""
+        self.notepad_dirty = True
+    
     def save_sessions(self):
-        """Save current workspace sessions"""
+        """Save current workspace sessions (optimized with change detection)"""
+        # Check if we have any changes to save
+        if not (self.session_dirty or self.notepad_dirty):
+            # Timer-based save with no changes - skip to reduce I/O
+            return
+        
         workspace_data = {}
         for workspace_id in range(NUM_WORKSPACES):
             if workspace_id in self.workspaces and workspace_id in self.notepads:
@@ -242,11 +259,15 @@ class MainWindow(QMainWindow):
                 session_data.notepad_visible = self.notepads[workspace_id].isVisible()
                 workspace_data[workspace_id] = session_data
         
-        self.session_manager.save_sessions(workspace_data)
-        
-        # Clear notepad change flags
-        for notepad in self.notepads.values():
-            notepad.clear_changes_flag()
+        # Save to session manager
+        if self.session_manager.save_sessions(workspace_data):
+            # Clear change flags only after successful save
+            self.session_dirty = False
+            self.notepad_dirty = False
+            
+            # Clear notepad change flags
+            for notepad in self.notepads.values():
+                notepad.clear_changes_flag()
     
     def switch_workspace(self, workspace_id: int):
         """Switch to specified workspace"""
@@ -282,6 +303,7 @@ class MainWindow(QMainWindow):
                 # Update window title if this is the current workspace
                 if workspace_id == self.current_workspace:
                     self.setWindowTitle(f"ChatGPT Browser - {new_name}")
+                self._mark_session_dirty()
                 self.save_sessions()
     
     def get_current_workspace(self) -> Optional[WorkspaceWidget]:
@@ -368,10 +390,14 @@ class MainWindow(QMainWindow):
                         notepad.hide()
                         splitter.setSizes([800, 0])
                     
+                    self._mark_session_dirty()
                     self.save_sessions()
     
     def closeEvent(self, a0):
         """Handle application close event"""
+        # Force immediate save of any pending notepad changes
+        self._force_save_pending_changes()
+        
         # Save sessions before closing
         self.save_sessions()
         
@@ -381,3 +407,17 @@ class MainWindow(QMainWindow):
         
         if a0:
             a0.accept()
+    
+    def _force_save_pending_changes(self):
+        """Force immediate save of any pending notepad changes that haven't triggered dirty flags yet"""
+        # Check each notepad for unsaved changes and stop any pending debounce timers
+        for notepad in self.notepads.values():
+            # Stop any pending debounce timers to prevent them from firing after we've saved
+            if hasattr(notepad, '_save_timer') and notepad._save_timer.isActive():
+                notepad._save_timer.stop()
+            
+            # If notepad has changes that haven't been marked dirty yet, mark them now
+            if notepad.has_changes():
+                self.notepad_dirty = True
+                # Force the content_changed signal to fire immediately
+                notepad._emit_content_changed()
