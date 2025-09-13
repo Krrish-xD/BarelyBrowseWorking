@@ -357,6 +357,7 @@ class WorkspaceTabWidget(QTabWidget):
                 border: 1px solid {COLORS['accent']};
                 border-radius: 14px;
                 color: {COLORS['text']};
+                margin-top: -3px;
             }}
             QLabel {{
                 color: {COLORS['text']};
@@ -405,6 +406,7 @@ class WorkspaceTabWidget(QTabWidget):
                 border: 2px solid {accent_color};
                 border-radius: 14px;
                 color: {COLORS['text']};
+                margin-top: -3px;
             }}
             QLabel {{
                 color: {COLORS['text']};
