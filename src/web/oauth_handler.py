@@ -30,31 +30,25 @@ class OAuthHandler(QObject):
         """
         Check if URL should be redirected to system browser for OAuth
         
+        For ChatGPT/OpenAI authentication flows, we keep Google OAuth within the app
+        to maintain session continuity. This prevents the "invalid session" error
+        that occurs when OAuth callbacks try to return to a different browser context.
+        
         Args:
             url: The URL to check
             
         Returns:
             True if URL should be redirected to system browser
         """
-        try:
-            parsed = urlparse(url.lower())
-            hostname = parsed.netloc.lower()
-            
-            # Check if it's a Google OAuth URL
-            for pattern in self.oauth_patterns:
-                if pattern in hostname:
-                    # Additional check for oauth-related paths
-                    path = parsed.path.lower()
-                    if any(keyword in path for keyword in ['oauth', 'auth', 'signin', 'login']):
-                        return True
-                    # Check for OAuth query parameters
-                    if 'oauth' in parsed.query.lower() or 'response_type' in parsed.query.lower():
-                        return True
-                        
-        except Exception:
-            # If URL parsing fails, don't redirect
-            pass
-            
+        # IMPORTANT: For this ChatGPT Browser app, we disable OAuth redirection
+        # to system browser entirely. This ensures that Google OAuth flows for
+        # ChatGPT/OpenAI authentication stay within the same browser context,
+        # preventing session mismatch errors.
+        #
+        # The original OAuth redirection was causing "Route Error (400 Invalid Session)"
+        # because the OAuth session was initiated in the embedded WebView but
+        # callbacks were landing in the external system browser, breaking the flow.
+        
         return False
     
     def redirect_to_system_browser(self, url: str) -> bool:

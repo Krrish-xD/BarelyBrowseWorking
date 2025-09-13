@@ -22,9 +22,9 @@ args = "ChatGPT Browser (Headless)"
 name = "ChatGPT Browser (Headless)"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py --headless"
-
-[workflows.workflow.metadata]
-outputType = "console"
