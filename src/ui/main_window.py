@@ -152,76 +152,52 @@ class MainWindow(QMainWindow):
         self.workspace_stack = AnimatedStackedWidget()
         content_layout.addWidget(self.workspace_stack)
         
-        # Add workspace pill indicator (floating in top-right corner)
-        self.workspace_pill = self.create_workspace_pill()
+        # Workspace pill now handled by individual tab widgets
         
         layout.addWidget(content_container)
         
-    def create_workspace_pill(self) -> QWidget:
-        """Create the floating workspace indicator pill"""
-        pill = QWidget(self)
-        pill.setObjectName("workspace-pill")
-        pill.setFixedHeight(32)
-        pill.setMinimumWidth(120)
-        pill.setMaximumWidth(200)
-        
-        # Create layout
-        pill_layout = QHBoxLayout(pill)
-        pill_layout.setContentsMargins(12, 6, 12, 6)
-        pill_layout.setSpacing(8)
-        
-        # Workspace name label
-        self.workspace_label = QLabel(self.get_current_workspace_name())
-        self.workspace_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        pill_layout.addWidget(self.workspace_label)
-        
-        # Styling for the pill
-        pill.setStyleSheet(f"""
-            QWidget#workspace-pill {{
-                background-color: {COLORS['secondary_bg']};
-                border: 1px solid {COLORS['accent']};
-                border-radius: 16px;
-                color: {COLORS['text']};
-            }}
-            QLabel {{
-                color: {COLORS['text']};
-                border: none;
-            }}
-        """)
-        
-        # Make pill transparent to mouse events so it doesn't interfere
-        pill.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        
-        # Set initial position (will be refined in resizeEvent)
-        pill.move(self.width() - pill.width() - 20 if self.width() > pill.width() + 40 else 20, 20)
-        pill.show()
-        pill.raise_()  # Ensure it's on top
-        
-        return pill
     
     def get_current_workspace_name(self) -> str:
         """Get the name of the current workspace"""
         return self.workspace_names[self.current_workspace]
+    
+    def rename_current_workspace(self):
+        """Show rename dialog for current workspace"""
+        current_name = self.get_current_workspace_name()
+        
+        dialog = WorkspaceRenameDialog(current_name, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_name = dialog.name_edit.text().strip()
+            if new_name and new_name != current_name:
+                # Update workspace name
+                self.workspace_names[self.current_workspace] = new_name
+                
+                # Update window title and corner widget
+                self.update_window_title()
+                
+                # Update current workspace data and save
+                workspace_widget = self.workspaces.get(self.current_workspace)
+                if workspace_widget:
+                    # Update the workspace data name
+                    workspace_widget.workspace_data.name = new_name
+                    
+                    # Mark session as dirty and save all workspace sessions
+                    self.session_dirty = True
+                    self.save_sessions()
     
     def update_window_title(self):
         """Update window title with current workspace name"""
         workspace_name = self.get_current_workspace_name()
         self.setWindowTitle(f"ChatGPT Browser - {workspace_name}")
         
-        # Update workspace pill
-        if hasattr(self, 'workspace_label'):
-            self.workspace_label.setText(workspace_name)
-            # Ensure pill stays on top when workspace changes
-            if hasattr(self, 'workspace_pill'):
-                self.workspace_pill.raise_()
+        # Update corner widget pill in current workspace
+        workspace_widget = self.workspaces.get(self.current_workspace)
+        if workspace_widget and hasattr(workspace_widget, 'tab_widget'):
+            workspace_widget.tab_widget.update_workspace_name(workspace_name, workspace_widget.workspace_data)
     
     def resizeEvent(self, event):
-        """Handle window resize to reposition workspace pill"""
+        """Handle window resize (workspace pill now handled by tab widgets)"""
         super().resizeEvent(event)
-        if hasattr(self, 'workspace_pill'):
-            # Reposition pill to top-right corner and raise it
-            self.workspace_pill.move(self.width() - self.workspace_pill.width() - 20, 20)
-            self.workspace_pill.raise_()
     
     def setup_shortcuts(self):
         """Setup keyboard shortcuts"""
@@ -239,6 +215,7 @@ class MainWindow(QMainWindow):
         
         # Workspace and features
         QShortcut(QKeySequence("Ctrl+Shift+K"), self, self.toggle_current_notepad)
+        QShortcut(QKeySequence("Ctrl+Shift+R"), self, self.rename_current_workspace)
         QShortcut(QKeySequence("Ctrl+Shift+1"), self, lambda: self.switch_workspace(0))
         QShortcut(QKeySequence("Ctrl+Shift+2"), self, lambda: self.switch_workspace(1))
         QShortcut(QKeySequence("Ctrl+Shift+3"), self, lambda: self.switch_workspace(2))

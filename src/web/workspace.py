@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QUrl, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QHBoxLayout, QLabel, QPushButton, QFrame
 from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEnginePage
+from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEnginePage, QWebEngineScript
 
 from ..config import CHATGPT_URL
 from ..paths import get_workspace_profile_dir
@@ -32,7 +32,60 @@ class SecurePage(QWebEnginePage):
         # Flag to suppress security dialogs (for popups)
         self.suppress_security_dialogs = False
         
+        # Inject CSS to hide jarring skip-to-content popups
+        self.inject_skip_content_blocker()
+        
 # OAuth notification signals removed
+    
+    def inject_skip_content_blocker(self):
+        """Inject CSS to hide skip-to-content popups that appear during navigation"""
+        css_code = """
+        /* Hide common skip-to-content elements that cause jarring popups */
+        a[href^="#skip-to-content"],
+        [data-testid="skip-to-content"],
+        #skip-to-content,
+        .skip-to-content,
+        a[href="#main"],
+        a[href="#content"],
+        .sr-only:focus,
+        .visually-hidden:focus {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
+        }
+        
+        /* Also hide any accessibility skip links that might pop up */
+        a.skip-link,
+        a.skip-nav,
+        .skip-navigation {
+            display: none !important;
+        }
+        """
+        
+        script = QWebEngineScript()
+        script.setSourceCode(f"""
+            (function() {{
+                var style = document.createElement('style');
+                style.textContent = `{css_code}`;
+                if (document.head) {{
+                    document.head.appendChild(style);
+                }} else {{
+                    document.addEventListener('DOMContentLoaded', function() {{
+                        document.head.appendChild(style);
+                    }});
+                }}
+            }})();
+        """)
+        script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
+        script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
+        script.setRunsOnSubFrames(True)
+        
+        # Add script to profile so it applies to all pages
+        profile = self.profile()
+        if profile:
+            profile.scripts().insert(script)
     
     def acceptNavigationRequest(self, url: QUrl, nav_type, is_main_frame: bool) -> bool:
         """Override navigation request handling with security and OAuth checks"""
@@ -224,6 +277,14 @@ class WorkspaceTabWidget(QTabWidget):
         
         self.setup_style()
         self.setup_corner_widget()
+        
+        # Apply workspace theme if workspace data has custom colors
+        from . import WorkspaceWidget
+        parent_workspace = self.parent()
+        while parent_workspace and not isinstance(parent_workspace, WorkspaceWidget):
+            parent_workspace = parent_workspace.parent()
+        if parent_workspace and hasattr(parent_workspace, 'workspace_data'):
+            self.apply_workspace_theme(parent_workspace.workspace_data)
     
     def setup_style(self):
         """Apply dark theme styling to tabs"""
@@ -268,16 +329,20 @@ class WorkspaceTabWidget(QTabWidget):
         """)
     
     def setup_corner_widget(self):
-        """Setup corner widget with workspace name and notepad toggle"""
+        """Setup corner widget with workspace pill (notepad removed - shortcut only)"""
         if not self.workspace_name:
             return
             
-        corner_widget = QFrame()
-        corner_widget.setObjectName("workspace-corner-widget")
+        # Create workspace pill for corner widget
+        pill = QWidget()
+        pill.setObjectName("workspace-pill")
+        pill.setFixedHeight(28)
+        pill.setMinimumWidth(100)
+        pill.setMaximumWidth(180)
         
-        layout = QHBoxLayout(corner_widget)
-        layout.setContentsMargins(8, 2, 8, 2)
-        layout.setSpacing(8)
+        layout = QHBoxLayout(pill)
+        layout.setContentsMargins(12, 4, 12, 4)
+        layout.setSpacing(0)
         
         # Workspace name label
         workspace_label = QLabel(self.workspace_name)
@@ -285,19 +350,26 @@ class WorkspaceTabWidget(QTabWidget):
         workspace_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         layout.addWidget(workspace_label)
         
-        # Notepad toggle button
-        if self.notepad_toggle_callback:
-            notepad_btn = QPushButton("📝")
-            notepad_btn.setObjectName("notepad-toggle")
-            notepad_btn.setFixedSize(20, 20)
-            notepad_btn.setToolTip("Toggle Notepad (Ctrl+Shift+K)")
-            notepad_btn.clicked.connect(self.notepad_toggle_callback)
-            layout.addWidget(notepad_btn)
+        # Style the pill to match main window pill design
+        from ..config import COLORS
+        pill.setStyleSheet(f"""
+            QWidget#workspace-pill {{
+                background-color: {COLORS['secondary_bg']};
+                border: 1px solid {COLORS['accent']};
+                border-radius: 14px;
+                color: {COLORS['text']};
+            }}
+            QLabel {{
+                color: {COLORS['text']};
+                border: none;
+                background: transparent;
+            }}
+        """)
         
         # Set as corner widget (top-right)
-        self.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
+        self.setCornerWidget(pill, Qt.Corner.TopRightCorner)
     
-    def update_workspace_name(self, name: str):
+    def update_workspace_name(self, name: str, workspace_data=None):
         """Update the workspace name displayed in corner widget"""
         self.workspace_name = name
         corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
@@ -305,6 +377,102 @@ class WorkspaceTabWidget(QTabWidget):
             label = corner_widget.findChild(QLabel, "workspace-name")
             if label:
                 label.setText(name)
+        
+        # Apply workspace theme if data provided
+        if workspace_data:
+            self.apply_workspace_theme(workspace_data)
+    
+    def apply_workspace_theme(self, workspace_data: 'WorkspaceData'):
+        """Apply custom workspace color theme to pill and tabs"""
+        corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
+        if not corner_widget:
+            return
+            
+        from ..config import COLORS
+        
+        # Use custom color if available, otherwise default
+        if workspace_data.color and workspace_data.color.startswith('#'):
+            accent_color = workspace_data.color
+            # Create a lighter version for hover
+            hover_color = self._lighten_color(accent_color, 0.1)
+        else:
+            accent_color = COLORS['accent']
+            hover_color = '#4c4c4c'
+        
+        # Apply theme to workspace pill
+        corner_widget.setStyleSheet(f"""
+            QWidget#workspace-pill {{
+                background-color: {COLORS['secondary_bg']};
+                border: 2px solid {accent_color};
+                border-radius: 14px;
+                color: {COLORS['text']};
+            }}
+            QLabel {{
+                color: {COLORS['text']};
+                border: none;
+                background: transparent;
+            }}
+        """)
+        
+        # Apply theme to tab styling (accent color for selected tabs)
+        self.setStyleSheet(f"""
+            QTabWidget::pane {{
+                background-color: {COLORS['primary_bg']};
+                border: none;
+                border-top: 2px solid {accent_color};
+            }}
+            QTabBar::tab {{
+                background-color: {COLORS['secondary_bg']};
+                color: {COLORS['text']};
+                padding: 12px 24px;  /* 30% bigger */
+                margin-right: 2px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                min-width: 160px;  /* 30% bigger minimum width */
+                max-width: 240px;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                font-weight: 500;
+                border: 1px solid transparent;
+                border-bottom: none;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {COLORS['primary_bg']};
+                border: 2px solid {accent_color};
+                border-bottom: 2px solid {COLORS['primary_bg']};
+                color: {COLORS['text']};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {hover_color};
+                border: 1px solid {hover_color};
+                border-bottom: none;
+            }}
+            QTabBar {{
+                qproperty-drawBase: 0;  /* Clean connection between tabs and pane */
+            }}
+        """)
+    
+    def _lighten_color(self, hex_color: str, amount: float) -> str:
+        """Lighten a hex color by the specified amount (0.0 to 1.0)"""
+        try:
+            # Remove # if present
+            hex_color = hex_color.lstrip('#')
+            
+            # Convert to RGB
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16) 
+            b = int(hex_color[4:6], 16)
+            
+            # Lighten each component
+            r = min(255, int(r + (255 - r) * amount))
+            g = min(255, int(g + (255 - g) * amount))
+            b = min(255, int(b + (255 - b) * amount))
+            
+            # Convert back to hex
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except (ValueError, IndexError):
+            # Return default on error
+            return '#4c4c4c'
 
 
 class WorkspaceWidget(QWidget):

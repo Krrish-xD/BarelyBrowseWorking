@@ -36,6 +36,7 @@ class WorkspaceData:
     active_tab: int = 0
     notepad_content: str = ""
     notepad_visible: bool = False
+    color: Optional[str] = None  # Custom workspace color (hex code)
 
 
 class SessionManager:
@@ -74,7 +75,8 @@ class SessionManager:
                     'name': workspace_data.name,
                     'tabs': [asdict(tab) for tab in workspace_data.tabs],
                     'active_tab': workspace_data.active_tab,
-                    'notepad_visible': workspace_data.notepad_visible
+                    'notepad_visible': workspace_data.notepad_visible,
+                    'color': workspace_data.color
                 }
             
             # Check if session data has changed (compute hash WITHOUT timestamp)
@@ -130,7 +132,8 @@ class SessionManager:
                     tabs=tabs,
                     active_tab=max(0, min(data.get('active_tab', 0), len(tabs) - 1)),
                     notepad_content=notepad_content,
-                    notepad_visible=data.get('notepad_visible', False)
+                    notepad_visible=data.get('notepad_visible', False),
+                    color=data.get('color')
                 )
             
             # Ensure we have all 4 workspaces
@@ -141,7 +144,8 @@ class SessionManager:
                         tabs=[TabData(url=CHATGPT_URL)],
                         active_tab=0,
                         notepad_content="",
-                        notepad_visible=False
+                        notepad_visible=False,
+                        color=None
                     )
             
             return workspaces
@@ -157,7 +161,8 @@ class SessionManager:
                 tabs=[TabData(url=CHATGPT_URL)],
                 active_tab=0,
                 notepad_content="",
-                notepad_visible=False
+                notepad_visible=False,
+                color=None
             )
             for i in range(4)
         }
