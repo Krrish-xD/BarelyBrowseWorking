@@ -186,7 +186,8 @@ class SecurePage(QWebEnginePage):
 class ChatGPTWebView(QWebEngineView):
     """Custom web view for ChatGPT with isolated profile"""
     
-# OAuth notifications removed
+    # Signal emitted when URL changes (for real-time session updates)
+    url_changed = pyqtSignal(str)  # new_url
     
     def __init__(self, workspace_id: int, profile: QWebEngineProfile, parent=None):
         super().__init__(parent)
@@ -200,14 +201,14 @@ class ChatGPTWebView(QWebEngineView):
         self.page_obj = SecurePage(self.profile, self)
         self.setPage(self.page_obj)
         
-        # Connect security signals from the secure page
-# OAuth notification connection removed
+        # Connect URL change detection for real-time session updates
+        self.urlChanged.connect(self._on_url_changed)
+        self.loadFinished.connect(self._on_load_finished)
         
         # Configure for secure operation
         self._setup_security_settings()
         
-        # Load ChatGPT
-        self.load(QUrl(CHATGPT_URL))
+        # Note: URL loading is handled by the caller to avoid duplicate loads
     
     
     def _setup_security_settings(self):
@@ -244,8 +245,18 @@ class ChatGPTWebView(QWebEngineView):
         
         # Always deny all permission requests
         self.page().setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionDeniedByUser)
-        
-        # Use default user agent for better compatibility
+    
+    def _on_url_changed(self, url):
+        """Handle URL changes to update session data immediately"""
+        url_str = url.toString()
+        self.url_changed.emit(url_str)
+    
+    def _on_load_finished(self, success):
+        """Handle load finished to ensure URL is captured after redirects"""
+        if success:
+            # Emit URL change after load completes to catch any redirects
+            current_url = self.url().toString()
+            self.url_changed.emit(current_url)
     
     def closeEvent(self, a0):
         """Clean up resources when closing"""
@@ -559,25 +570,55 @@ class WorkspaceWidget(QWidget):
             return self.tab_widget.currentIndex()  # Return current tab instead of failing
             
         web_view = ChatGPTWebView(self.workspace_id, self.workspace_profile)
-        web_view.load(QUrl(url))
+        # Only load if different from default to avoid race conditions
+        if url != CHATGPT_URL:
+            web_view.load(QUrl(url))
+        else:
+            # Load default URL
+            web_view.load(QUrl(CHATGPT_URL))
         
         self.web_views.append(web_view)
         tab_index = self.tab_widget.addTab(web_view, "ChatGPT")
         
-        # Connect signals
+        # Add tab data to workspace data for real-time tracking
+        if tab_index >= len(self.workspace_data.tabs):
+            # Add new tab data
+            self.workspace_data.tabs.append(TabData(url=url, title="ChatGPT"))
+        
+        # Connect signals using web view instance to avoid index-capture bug
         web_view.titleChanged.connect(
-            lambda title, idx=tab_index: self._update_tab_title(idx, title)
+            lambda title, wv=web_view: self._update_title_for_view(wv, title)
         )
-        # OAuth notification connection removed as requested
+        # Connect URL change signal for real-time session updates
+        web_view.url_changed.connect(
+            lambda new_url, wv=web_view: self._update_url_for_view(wv, new_url)
+        )
         
         self.session_changed.emit()
         return tab_index
     
-    def _update_tab_title(self, index: int, title: str):
-        """Update tab title, truncating if too long"""
-        if index < self.tab_widget.count():
+    def _update_title_for_view(self, web_view, title: str):
+        """Update tab title using web view instance to avoid index issues"""
+        # Find current index of this web view
+        index = self.tab_widget.indexOf(web_view)
+        if index >= 0:
             truncated_title = title[:30] + "..." if len(title) > 30 else title
             self.tab_widget.setTabText(index, truncated_title)
+            
+            # Also update the title in workspace data for real-time tracking
+            if 0 <= index < len(self.workspace_data.tabs):
+                self.workspace_data.tabs[index].title = truncated_title
+                self.session_changed.emit()
+    
+    def _update_url_for_view(self, web_view, url: str):
+        """Update tab URL using web view instance to avoid index issues"""
+        # Find current index of this web view
+        index = self.tab_widget.indexOf(web_view)
+        if index >= 0 and 0 <= index < len(self.workspace_data.tabs):
+            # Update the URL in the stored tab data
+            self.workspace_data.tabs[index].url = url
+            # Mark session as changed for next save
+            self.session_changed.emit()
     
     def close_tab(self, index: int):
         """Close a tab and save for restoration"""
@@ -595,6 +636,10 @@ class WorkspaceWidget(QWidget):
             # Limit closed tabs to prevent memory leak
             if len(self.closed_tabs) > self.max_closed_tabs:
                 self.closed_tabs.pop(0)  # Remove oldest closed tab
+            
+            # Remove from workspace data tabs list
+            if 0 <= index < len(self.workspace_data.tabs):
+                self.workspace_data.tabs.pop(index)
             
             # Remove from lists
             if web_view in self.web_views:
