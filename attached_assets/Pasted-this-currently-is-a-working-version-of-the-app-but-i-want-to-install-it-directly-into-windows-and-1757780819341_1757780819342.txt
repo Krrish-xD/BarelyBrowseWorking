@@ -1,0 +1,50 @@
+this, currently, is a working version of the app
+
+but i want to install it directly into windows and not use it through vscode
+
+so before that, i would like some optimizations
+
+these are the ones i had in mind:
+
+1. Remove Debug/Console Output
+Many print statements throughout the code that will clutter user experience
+URL filter logs showing every allowed/blocked request in console
+Traceback prints that expose technical details to users
+2. Memory Optimization
+Profile sharing efficiency: Each workspace creates a new QWebEngineProfile, but you could optimize shared resources
+Tab restoration memory: Closed tabs are stored indefinitely in memory
+🎯 Performance & Size Optimizations
+3. PyInstaller Build Refinements
+UPX compression exclusions could be more targeted
+Hidden imports might include unnecessary modules
+Bundle size could be reduced by excluding more unused dependencies
+4. Resource Management
+Auto-save frequency: 4-minute auto-save might be excessive for SSD wear
+Notepad file handling: Could batch writes to reduce I/O
+🔧 User Experience Polish
+5. Error Handling Improvements
+Silent failures in some session loading scenarios
+No user feedback when URL requests are blocked
+Missing progress indicators during startup
+6. Keyboard Shortcuts Refinement
+No visual shortcuts help for users
+Missing common browser shortcuts (Ctrl+R refresh, etc.)
+🛡️ Security & Stability
+7. URL Filter Hardening
+OAuth redirect validation could be more robust
+Subdomain wildcarding might be too permissive
+8. Session Recovery
+No corrupt session handling if JSON files get damaged
+Missing backup/restore functionality
+📱 Platform Integration
+9. Windows Integration
+No file associations for .html files
+Missing Windows notifications for session saves
+No system tray integration for minimal operation
+💾 Memory Efficiency Focus
+Since you emphasized memory efficiency is the biggest requirement:
+
+10. WebEngine Memory Management
+Shared process optimization: Configure QtWebEngine for minimal memory footprint
+Cache size limits: Set explicit limits on profile cache sizes
+Resource cleanup timing: More aggressive cleanup of unused resources
