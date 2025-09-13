@@ -9,8 +9,16 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 import hashlib
 
-from ..config import CHATGPT_URL, DEFAULT_WORKSPACE_NAMES
-from ..paths import get_sessions_file, get_workspace_notepad_file, ensure_directories
+try:
+    from ..config import CHATGPT_URL, DEFAULT_WORKSPACE_NAMES
+    from ..paths import get_sessions_file, get_workspace_notepad_file, ensure_directories
+except ImportError:
+    # Support direct module execution
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from config import CHATGPT_URL, DEFAULT_WORKSPACE_NAMES
+    from paths import get_sessions_file, get_workspace_notepad_file, ensure_directories
 
 
 @dataclass
