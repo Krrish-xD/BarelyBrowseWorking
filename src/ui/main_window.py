@@ -219,7 +219,9 @@ class MainWindow(QMainWindow):
             # Create workspace widget
             workspace_widget = WorkspaceWidget(workspace_id, data, self.toggle_current_notepad, self)
             workspace_widget.session_changed.connect(self._mark_session_dirty)
-            
+            workspace_widget.notification_requested.connect(
+                lambda msg: self.notification_widget.show_notification(msg, 4000)
+            )
             
             self.workspaces[workspace_id] = workspace_widget
             

@@ -13,10 +13,93 @@ from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEng
 from ..config import CHATGPT_URL
 from ..paths import get_workspace_profile_dir
 from ..storage.session_manager import TabData, WorkspaceData
+from .oauth_handler import OAuthHandler
+from .security_interceptor import SecurityInterceptor
+
+
+class SecurePage(QWebEnginePage):
+    """Custom QWebEnginePage that properly handles navigation with security and OAuth checks"""
+    
+    oauth_notification_requested = pyqtSignal(str)  # message
+    
+    def __init__(self, profile: QWebEngineProfile, parent=None):
+        super().__init__(profile, parent)
+        
+        # Setup security components
+        self.oauth_handler = OAuthHandler(self)
+        self.security_interceptor = SecurityInterceptor(self)
+        
+        # Connect OAuth signals
+        self.oauth_handler.oauth_redirect_requested.connect(self._handle_oauth_redirect)
+    
+    def acceptNavigationRequest(self, url: QUrl, nav_type, is_main_frame: bool) -> bool:
+        """Override navigation request handling with security and OAuth checks"""
+        url_str = url.toString()
+        
+        # Check for dangerous schemes first
+        if self.security_interceptor.should_block_url(url_str):
+            reason = self.security_interceptor.get_block_reason(url_str)
+            self.oauth_notification_requested.emit(f"🚫 {reason}")
+            return False
+        
+        # Check for OAuth redirects on main frame navigation
+        if is_main_frame and self.oauth_handler.handle_navigation_request(url_str):
+            # OAuth handler redirected to system browser
+            return False
+        
+        # Allow all other navigation
+        return True
+    
+    def _handle_oauth_redirect(self, url: str, message: str):
+        """Handle OAuth redirect notification"""
+        self.oauth_notification_requested.emit(message)
+    
+    def createWindow(self, window_type):
+        """
+        Override popup window creation to ensure all popups use SecurePage with same security checks.
+        Critical security method - ensures OAuth popups can't bypass security.
+        """
+        from PyQt6.QtWebEngineCore import QWebEnginePage
+        
+        # Get the URL that will be loaded in the popup (if available)
+        # Note: Qt doesn't always provide the target URL at createWindow time
+        
+        # Create a new secure page with same profile for popup
+        popup_page = SecurePage(self.profile(), self.parent())
+        
+        # Connect popup's OAuth notifications to bubble up 
+        popup_page.oauth_notification_requested.connect(
+            self.oauth_notification_requested.emit
+        )
+        
+        # Override the popup's acceptNavigationRequest to handle OAuth immediately
+        original_accept = popup_page.acceptNavigationRequest
+        
+        def popup_navigation_handler(url, nav_type, is_main_frame):
+            """Enhanced navigation handler for popup windows"""
+            url_str = url.toString()
+            
+            # For popups, check OAuth redirects immediately on ANY navigation
+            # (not just main frame like in regular tabs)
+            if self.oauth_handler.handle_navigation_request(url_str):
+                # OAuth handler redirected to system browser
+                # Close the popup since OAuth is handled externally
+                popup_page.deleteLater()
+                return False
+            
+            # Use original security checks for non-OAuth URLs
+            return original_accept(url, nav_type, is_main_frame)
+        
+        # Replace the navigation handler
+        popup_page.acceptNavigationRequest = popup_navigation_handler
+        
+        return popup_page
 
 
 class ChatGPTWebView(QWebEngineView):
     """Custom web view for ChatGPT with isolated profile"""
+    
+    oauth_notification_requested = pyqtSignal(str)  # message
     
     def __init__(self, workspace_id: int, profile: QWebEngineProfile, parent=None):
         super().__init__(parent)
@@ -26,15 +109,21 @@ class ChatGPTWebView(QWebEngineView):
         # Use shared profile for this workspace
         self.profile = profile
         
-        # Create page with shared workspace profile
-        self.page_obj = QWebEnginePage(self.profile, self)
+        # Create secure page with shared workspace profile
+        self.page_obj = SecurePage(self.profile, self)
         self.setPage(self.page_obj)
+        
+        # Connect security signals from the secure page
+        self.page_obj.oauth_notification_requested.connect(
+            self.oauth_notification_requested.emit
+        )
         
         # Configure for secure operation
         self._setup_security_settings()
         
         # Load ChatGPT
         self.load(QUrl(CHATGPT_URL))
+    
     
     def _setup_security_settings(self):
         """Setup security settings for the web engine"""
@@ -44,18 +133,7 @@ class ChatGPTWebView(QWebEngineView):
             # Only in headless CI environments
             pass
         
-        # Set user agent to avoid any potential blocking
-        page = self.page()
-        if page:
-            profile = page.profile()
-            if profile:
-                # Use a standard Chrome user agent
-                user_agent = (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/121.0.0.0 Safari/537.36"
-                )
-                profile.setHttpUserAgent(user_agent)
+        # Use default user agent for better compatibility
     
     def closeEvent(self, a0):
         """Clean up resources when closing"""
@@ -170,6 +248,7 @@ class WorkspaceWidget(QWidget):
     """Widget representing a single workspace with tabs"""
     
     session_changed = pyqtSignal()
+    notification_requested = pyqtSignal(str)  # message
     
     def __init__(self, workspace_id: int, workspace_data: WorkspaceData, notepad_toggle_callback: Optional[Callable] = None, parent=None):
         super().__init__(parent)
@@ -201,6 +280,16 @@ class WorkspaceWidget(QWidget):
             QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies
         )
         
+        # OAuth compatibility - allow third-party cookies
+        try:
+            # Only available in Qt 6.6+
+            profile.setThirdPartyCookiePolicy(
+                QWebEngineProfile.ThirdPartyCookiePolicy.AllowAll
+            )
+        except AttributeError:
+            # Fallback for older Qt versions
+            pass
+        
         # Configure profile settings for optimal ChatGPT experience
         settings = profile.settings()
         if settings:
@@ -208,11 +297,12 @@ class WorkspaceWidget(QWidget):
             settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
             settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)  # Disable plugins for memory efficiency
             settings.setAttribute(QWebEngineSettings.WebAttribute.AutoLoadImages, True)
-            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
-            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+            # Security settings - restrict local content access
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
             
             # Memory optimization settings
-            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True)  # OAuth needs popups
             settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)  # Disable WebGL for memory savings
             settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)  # Reduce GPU memory usage
         
@@ -265,6 +355,9 @@ class WorkspaceWidget(QWidget):
         # Connect signals
         web_view.titleChanged.connect(
             lambda title, idx=tab_index: self._update_tab_title(idx, title)
+        )
+        web_view.oauth_notification_requested.connect(
+            self.notification_requested.emit
         )
         
         self.session_changed.emit()
