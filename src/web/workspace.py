@@ -351,7 +351,7 @@ class WorkspaceTabWidget(QTabWidget):
         pill.setMaximumWidth(180)
         
         layout = QHBoxLayout(pill)
-        layout.setContentsMargins(12, 4, 12, 4)
+        layout.setContentsMargins(16, 6, 16, 6)
         layout.setSpacing(0)
         
         # Workspace name label
@@ -363,19 +363,25 @@ class WorkspaceTabWidget(QTabWidget):
         # Add pill to container with center alignment
         container_layout.addWidget(pill, 0, Qt.AlignmentFlag.AlignVCenter)
         
-        # Style the pill to match main window pill design
+        # Style the pill with improved design
         from ..config import COLORS
         pill.setStyleSheet(f"""
             QWidget#workspace-pill {{
-                background-color: {COLORS['secondary_bg']};
-                border: 1px solid {COLORS['accent']};
-                border-radius: 14px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {COLORS['secondary_bg']}, 
+                    stop: 1 #1a1a1a);
+                border: 2px solid {COLORS['accent']};
+                border-radius: 16px;
                 color: {COLORS['text']};
+                min-height: 18px;
+                box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3);
             }}
             QLabel {{
                 color: {COLORS['text']};
                 border: none;
                 background: transparent;
+                font-weight: 600;
+                padding: 2px 4px;
             }}
         """)
         
@@ -420,56 +426,87 @@ class WorkspaceTabWidget(QTabWidget):
             accent_color = COLORS['accent']
             hover_color = '#4c4c4c'
         
-        # Apply theme to workspace pill
+        # Create gradient colors for pill
+        darker_accent = self._darken_color(accent_color, 0.3)
+        lighter_accent = self._lighten_color(accent_color, 0.1)
+        
+        # Apply theme to workspace pill with gradient
         pill.setStyleSheet(f"""
             QWidget#workspace-pill {{
-                background-color: {COLORS['secondary_bg']};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {lighter_accent}, 
+                    stop: 0.6 {accent_color},
+                    stop: 1 {darker_accent});
                 border: 2px solid {accent_color};
-                border-radius: 14px;
-                color: {COLORS['text']};
+                border-radius: 16px;
+                color: white;
+                min-height: 18px;
+                box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3);
             }}
             QLabel {{
-                color: {COLORS['text']};
+                color: white;
                 border: none;
                 background: transparent;
+                font-weight: 600;
+                padding: 2px 4px;
             }}
         """)
         
-        # Apply theme to tab styling (accent color for selected tabs)
+        # Create gradient colors for header and tabs
+        header_gradient_start = self._lighten_color(accent_color, 0.2)
+        header_gradient_end = self._darken_color(accent_color, 0.4)
+        tab_gradient_start = self._lighten_color(accent_color, 0.1)
+        tab_gradient_end = self._darken_color(accent_color, 0.2)
+        
+        # Apply theme with gradient header background and custom tab styling
         self.setStyleSheet(f"""
             QTabWidget::pane {{
+                border: 1px solid {accent_color};
                 background-color: {COLORS['primary_bg']};
-                border: none;
-                border-top: 2px solid {accent_color};
+                border-top: none;
+            }}
+            QTabBar {{
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {header_gradient_start}, 
+                    stop: 0.5 {accent_color},
+                    stop: 1 {header_gradient_end});
+                qproperty-drawBase: 0;
+                border-bottom: 2px solid {accent_color};
+                min-height: 35px;
             }}
             QTabBar::tab {{
-                background-color: {COLORS['secondary_bg']};
-                color: {COLORS['text']};
-                padding: 12px 24px;  /* 30% bigger */
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {tab_gradient_start}, 
+                    stop: 1 {tab_gradient_end});
+                color: white;
+                padding: 12px 24px;
                 margin-right: 2px;
                 border-top-left-radius: 8px;
                 border-top-right-radius: 8px;
-                min-width: 160px;  /* 30% bigger minimum width */
+                min-width: 160px;
                 max-width: 240px;
                 font-family: "Segoe UI", Arial, sans-serif;
                 font-size: 11px;
-                font-weight: 500;
-                border: 1px solid transparent;
+                font-weight: 600;
+                border: 1px solid {accent_color};
                 border-bottom: none;
+                margin-bottom: 2px;
             }}
             QTabBar::tab:selected {{
-                background-color: {COLORS['primary_bg']};
-                border: 2px solid {accent_color};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {self._lighten_color(accent_color, 0.3)}, 
+                    stop: 1 {accent_color});
+                border: 2px solid {self._lighten_color(accent_color, 0.2)};
                 border-bottom: 2px solid {COLORS['primary_bg']};
-                color: {COLORS['text']};
+                color: white;
+                margin-bottom: 0px;
             }}
             QTabBar::tab:hover:!selected {{
-                background-color: {hover_color};
-                border: 1px solid {hover_color};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {self._lighten_color(accent_color, 0.15)}, 
+                    stop: 1 {hover_color});
+                border: 1px solid {self._lighten_color(accent_color, 0.1)};
                 border-bottom: none;
-            }}
-            QTabBar {{
-                qproperty-drawBase: 0;  /* Clean connection between tabs and pane */
             }}
         """)
     
@@ -494,6 +531,28 @@ class WorkspaceTabWidget(QTabWidget):
         except (ValueError, IndexError):
             # Return default on error
             return '#4c4c4c'
+    
+    def _darken_color(self, hex_color: str, amount: float) -> str:
+        """Darken a hex color by the specified amount (0.0 to 1.0)"""
+        try:
+            # Remove # if present
+            hex_color = hex_color.lstrip('#')
+            
+            # Convert to RGB
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16) 
+            b = int(hex_color[4:6], 16)
+            
+            # Darken each component
+            r = max(0, int(r * (1 - amount)))
+            g = max(0, int(g * (1 - amount)))
+            b = max(0, int(b * (1 - amount)))
+            
+            # Convert back to hex
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except (ValueError, IndexError):
+            # Return default on error
+            return '#2a2a2a'
 
 
 class WorkspaceWidget(QWidget):
