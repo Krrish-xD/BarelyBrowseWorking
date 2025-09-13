@@ -17,7 +17,9 @@ from ..paths import get_assets_dir
 from ..storage.session_manager import SessionManager, WorkspaceData
 from ..web.workspace import WorkspaceWidget
 from .notepad import NotepadWidget
-from .notifications import NotificationWidget, StatusIndicator
+# Notifications removed as requested
+from .memory_manager import MemoryManager
+from .animated_widgets import AnimatedStackedWidget, SplitterAnimator
 
 
 class WorkspaceRenameDialog(QDialog):
@@ -96,11 +98,15 @@ class MainWindow(QMainWindow):
         self.session_dirty = False
         self.notepad_dirty = False
         
-        # Create notification system
-        self.notification_widget = NotificationWidget(self)
+# Notification system removed as requested
         
-        # Create status indicator for loading progress
-        self.status_indicator = StatusIndicator(self)
+        # Memory manager for intelligent workspace compression
+        self.memory_manager = MemoryManager(self)
+        self.memory_manager.workspace_needs_loading.connect(self._handle_workspace_loading)
+        self.memory_manager.compress_workspace_signal.connect(self._compress_workspace)
+        
+        # Splitter animator for smooth notepad transitions
+        self.splitter_animator = SplitterAnimator(self)
         
         # Auto-save timer
         self.autosave_timer = QTimer()
@@ -132,16 +138,66 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Add status indicator at top (initially hidden)
-        layout.addWidget(self.status_indicator)
-        self.status_indicator.hide()
+# Status indicator removed as requested
         
-        # Main content area with workspaces (no header)
-        self.workspace_stack = QStackedWidget()
-        layout.addWidget(self.workspace_stack)
+        # Create container for main content with workspace pill overlay
+        content_container = QWidget()
+        content_layout = QVBoxLayout(content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Main content area with workspaces (no header) - using animated version
+        self.workspace_stack = AnimatedStackedWidget()
+        content_layout.addWidget(self.workspace_stack)
+        
+        # Add workspace pill indicator (floating in top-right corner)
+        self.workspace_pill = self.create_workspace_pill()
+        
+        layout.addWidget(content_container)
         
         # Store workspace names for minimal display
         self.workspace_names = [f"Workspace {i+1}" for i in range(NUM_WORKSPACES)]
+        
+    def create_workspace_pill(self) -> QWidget:
+        """Create the floating workspace indicator pill"""
+        pill = QWidget(self)
+        pill.setObjectName("workspace-pill")
+        pill.setFixedHeight(32)
+        pill.setMinimumWidth(120)
+        pill.setMaximumWidth(200)
+        
+        # Create layout
+        pill_layout = QHBoxLayout(pill)
+        pill_layout.setContentsMargins(12, 6, 12, 6)
+        pill_layout.setSpacing(8)
+        
+        # Workspace name label
+        self.workspace_label = QLabel(self.get_current_workspace_name())
+        self.workspace_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        pill_layout.addWidget(self.workspace_label)
+        
+        # Styling for the pill
+        pill.setStyleSheet(f"""
+            QWidget#workspace-pill {{
+                background-color: {COLORS['secondary_bg']};
+                border: 1px solid {COLORS['accent']};
+                border-radius: 16px;
+                color: {COLORS['text']};
+            }}
+            QLabel {{
+                color: {COLORS['text']};
+                border: none;
+            }}
+        """)
+        
+        # Make pill transparent to mouse events so it doesn't interfere
+        pill.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        
+        # Set initial position (will be refined in resizeEvent)
+        pill.move(self.width() - pill.width() - 20 if self.width() > pill.width() + 40 else 20, 20)
+        pill.show()
+        pill.raise_()  # Ensure it's on top
+        
+        return pill
     
     def get_current_workspace_name(self) -> str:
         """Get the name of the current workspace"""
@@ -151,6 +207,21 @@ class MainWindow(QMainWindow):
         """Update window title with current workspace name"""
         workspace_name = self.get_current_workspace_name()
         self.setWindowTitle(f"ChatGPT Browser - {workspace_name}")
+        
+        # Update workspace pill
+        if hasattr(self, 'workspace_label'):
+            self.workspace_label.setText(workspace_name)
+            # Ensure pill stays on top when workspace changes
+            if hasattr(self, 'workspace_pill'):
+                self.workspace_pill.raise_()
+    
+    def resizeEvent(self, event):
+        """Handle window resize to reposition workspace pill"""
+        super().resizeEvent(event)
+        if hasattr(self, 'workspace_pill'):
+            # Reposition pill to top-right corner and raise it
+            self.workspace_pill.move(self.width() - self.workspace_pill.width() - 20, 20)
+            self.workspace_pill.raise_()
     
     def setup_shortcuts(self):
         """Setup keyboard shortcuts"""
@@ -206,22 +277,12 @@ class MainWindow(QMainWindow):
     
     def load_sessions(self):
         """Load workspace sessions"""
-        # Show status indicator and start loading progress
-        self.status_indicator.show()
-        self.status_indicator.set_status("Initializing workspaces...")
-        
         workspace_data = self.session_manager.load_sessions()
-        total_workspaces = len(workspace_data)
         
-        for i, (workspace_id, data) in enumerate(workspace_data.items(), 1):
-            # Update progress
-            self.status_indicator.set_status(f"Loading workspace {i}/{total_workspaces}...")
+        for workspace_id, data in workspace_data.items():
             # Create workspace widget
             workspace_widget = WorkspaceWidget(workspace_id, data, self.toggle_current_notepad, self)
             workspace_widget.session_changed.connect(self._mark_session_dirty)
-            workspace_widget.notification_requested.connect(
-                lambda msg: self.notification_widget.show_notification(msg, 4000)
-            )
             
             self.workspaces[workspace_id] = workspace_widget
             
@@ -242,10 +303,15 @@ class MainWindow(QMainWindow):
             splitter.setObjectName("main-splitter")
             splitter.addWidget(workspace_widget)
             splitter.addWidget(notepad_widget)
-            splitter.setSizes([800, 0])  # Hide notepad initially
+            # Use proportional sizing based on initial splitter height
+            initial_height = 600  # Default height during setup
+            main_height = int(initial_height * 0.75)
+            notepad_height = int(initial_height * 0.25)
+            
+            splitter.setSizes([initial_height, 0])  # Hide notepad initially
             
             if data.notepad_visible:
-                splitter.setSizes([600, 200])
+                splitter.setSizes([main_height, notepad_height])
                 notepad_widget.show()
             else:
                 notepad_widget.hide()
@@ -257,9 +323,7 @@ class MainWindow(QMainWindow):
             if workspace_id < len(self.workspace_names):
                 self.workspace_names[workspace_id] = data.name
         
-        # Hide status indicator and show completion notification
-        self.status_indicator.hide()
-        self.notification_widget.show_notification("✓ All workspaces loaded successfully", 2000)
+# Notifications removed - workspaces loaded silently
     
     def _mark_session_dirty(self):
         """Mark session data as dirty (needs saving)"""
@@ -304,6 +368,22 @@ class MainWindow(QMainWindow):
         # Save current workspace session
         self.save_sessions()
         
+        # Track workspace usage for memory management
+        self.memory_manager.mark_workspace_used(workspace_id)
+        
+        # Also mark current tab as used
+        workspace_widget = self.workspaces.get(workspace_id)
+        if workspace_widget and hasattr(workspace_widget, 'tab_widget'):
+            current_tab_index = workspace_widget.tab_widget.currentIndex()
+            if current_tab_index >= 0:
+                self.memory_manager.mark_tab_used(workspace_id, current_tab_index)
+        
+        # Check if workspace needs to be restored from compression
+        if self.memory_manager.is_workspace_compressed(workspace_id):
+            workspace_widget = self.workspaces.get(workspace_id)
+            if workspace_widget:
+                self.memory_manager.restore_workspace(workspace_id, workspace_widget)
+        
         # Switch workspace
         self.current_workspace = workspace_id
         self.workspace_stack.setCurrentIndex(workspace_id)
@@ -340,6 +420,22 @@ class MainWindow(QMainWindow):
     def get_current_notepad(self) -> Optional[NotepadWidget]:
         """Get the currently active notepad widget"""
         return self.notepads.get(self.current_workspace)
+    
+    def _handle_workspace_loading(self, workspace_id: int):
+        """Handle workspace loading when switching to a compressed workspace"""
+        workspace_widget = self.workspaces.get(workspace_id)
+        if workspace_widget and self.memory_manager.is_workspace_compressed(workspace_id):
+            self.memory_manager.restore_workspace(workspace_id, workspace_widget)
+    
+    def _compress_workspace(self, workspace_id: int):
+        """Compress an unused workspace to save memory"""
+        if workspace_id == self.current_workspace:
+            # Don't compress the currently active workspace
+            return
+            
+        workspace_widget = self.workspaces.get(workspace_id)
+        if workspace_widget:
+            self.memory_manager.compress_workspace(workspace_id, workspace_widget)
     
     # Tab management methods
     def new_tab(self):
@@ -399,7 +495,7 @@ class MainWindow(QMainWindow):
             workspace.navigate_forward()
     
     def toggle_current_notepad(self, show: Optional[bool] = None):
-        """Toggle notepad for current workspace"""
+        """Toggle notepad for current workspace with smooth animation"""
         notepad = self.get_current_notepad()
         if notepad:
             # Get the splitter from the current workspace
@@ -410,12 +506,24 @@ class MainWindow(QMainWindow):
                     if show is None:
                         show = not notepad.isVisible()
                     
+                    # Calculate proportional sizes based on splitter height
+                    total_height = splitter.height() if splitter.height() > 0 else 800
+                    main_height = int(total_height * 0.75)  # 75% for main area
+                    notepad_height = int(total_height * 0.25)  # 25% for notepad
+                    
                     if show:
                         notepad.show()
-                        splitter.setSizes([600, 200])
+                        # Animate to show notepad with proportional sizing
+                        self.splitter_animator.animate_to_sizes(splitter, [main_height, notepad_height])
                     else:
-                        notepad.hide()
-                        splitter.setSizes([800, 0])
+                        # Animate to hide notepad, with one-time callback
+                        def hide_after_animation():
+                            notepad.hide()
+                            # Disconnect this specific callback
+                            self.splitter_animator.animation_finished.disconnect(hide_after_animation)
+                        
+                        self.splitter_animator.animation_finished.connect(hide_after_animation)
+                        self.splitter_animator.animate_to_sizes(splitter, [total_height, 0])
                     
                     self._mark_session_dirty()
                     self.save_sessions()

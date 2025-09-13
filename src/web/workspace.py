@@ -20,7 +20,7 @@ from .security_interceptor import SecurityInterceptor
 class SecurePage(QWebEnginePage):
     """Custom QWebEnginePage that properly handles navigation with security and OAuth checks"""
     
-    oauth_notification_requested = pyqtSignal(str)  # message
+# OAuth notifications removed
     
     def __init__(self, profile: QWebEngineProfile, parent=None):
         super().__init__(profile, parent)
@@ -29,8 +29,7 @@ class SecurePage(QWebEnginePage):
         self.oauth_handler = OAuthHandler(self)
         self.security_interceptor = SecurityInterceptor(self)
         
-        # Connect OAuth signals
-        self.oauth_handler.oauth_redirect_requested.connect(self._handle_oauth_redirect)
+# OAuth notification signals removed
     
     def acceptNavigationRequest(self, url: QUrl, nav_type, is_main_frame: bool) -> bool:
         """Override navigation request handling with security and OAuth checks"""
@@ -38,8 +37,7 @@ class SecurePage(QWebEnginePage):
         
         # Check for dangerous schemes first
         if self.security_interceptor.should_block_url(url_str):
-            reason = self.security_interceptor.get_block_reason(url_str)
-            self.oauth_notification_requested.emit(f"🚫 {reason}")
+            # Block silently - notifications removed
             return False
         
         # Check for OAuth redirects on main frame navigation
@@ -50,9 +48,7 @@ class SecurePage(QWebEnginePage):
         # Allow all other navigation
         return True
     
-    def _handle_oauth_redirect(self, url: str, message: str):
-        """Handle OAuth redirect notification"""
-        self.oauth_notification_requested.emit(message)
+# OAuth redirect notifications removed
     
     def createWindow(self, window_type):
         """
@@ -67,10 +63,7 @@ class SecurePage(QWebEnginePage):
         # Create a new secure page with same profile for popup
         popup_page = SecurePage(self.profile(), self.parent())
         
-        # Connect popup's OAuth notifications to bubble up 
-        popup_page.oauth_notification_requested.connect(
-            self.oauth_notification_requested.emit
-        )
+# Popup OAuth notifications removed
         
         # Override the popup's acceptNavigationRequest to handle OAuth immediately
         original_accept = popup_page.acceptNavigationRequest
@@ -99,7 +92,7 @@ class SecurePage(QWebEnginePage):
 class ChatGPTWebView(QWebEngineView):
     """Custom web view for ChatGPT with isolated profile"""
     
-    oauth_notification_requested = pyqtSignal(str)  # message
+# OAuth notifications removed
     
     def __init__(self, workspace_id: int, profile: QWebEngineProfile, parent=None):
         super().__init__(parent)
@@ -114,9 +107,7 @@ class ChatGPTWebView(QWebEngineView):
         self.setPage(self.page_obj)
         
         # Connect security signals from the secure page
-        self.page_obj.oauth_notification_requested.connect(
-            self.oauth_notification_requested.emit
-        )
+# OAuth notification connection removed
         
         # Configure for secure operation
         self._setup_security_settings()
@@ -156,10 +147,9 @@ class WorkspaceTabWidget(QTabWidget):
     
     def __init__(self, workspace_name: str = "", notepad_toggle_callback: Optional[Callable] = None, parent=None):
         super().__init__(parent)
-        self.setTabsClosable(True)
+        self.setTabsClosable(False)  # Remove close buttons as requested
         self.setMovable(True)
         self.setDocumentMode(True)
-        self.tabCloseRequested.connect(self.tab_close_requested.emit)
         
         self.workspace_name = workspace_name
         self.notepad_toggle_callback = notepad_toggle_callback
@@ -171,36 +161,41 @@ class WorkspaceTabWidget(QTabWidget):
         """Apply dark theme styling to tabs"""
         from ..config import COLORS
         
+        # Clean modern tab styling (30% bigger, similar to reference image)
         self.setStyleSheet(f"""
             QTabWidget::pane {{
                 border: 1px solid {COLORS['accent']};
                 background-color: {COLORS['primary_bg']};
+                border-top: none;
             }}
             QTabBar::tab {{
                 background-color: {COLORS['secondary_bg']};
                 color: {COLORS['text']};
-                padding: 8px 12px;
-                margin-right: 2px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                min-width: 120px;
+                padding: 10px 20px;  /* 30% bigger padding */
+                margin-right: 1px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                min-width: 160px;  /* 30% bigger minimum width */
+                max-width: 240px;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                font-weight: 500;
+                border: 1px solid transparent;
+                border-bottom: none;
             }}
             QTabBar::tab:selected {{
                 background-color: {COLORS['primary_bg']};
-                border-bottom: 2px solid {COLORS['accent']};
+                border: 1px solid {COLORS['accent']};
+                border-bottom: 1px solid {COLORS['primary_bg']};
+                color: {COLORS['text']};
             }}
-            QTabBar::tab:hover {{
+            QTabBar::tab:hover:!selected {{
                 background-color: {COLORS['accent']};
+                border: 1px solid {COLORS['accent']};
+                border-bottom: none;
             }}
-            QTabBar::close-button {{
-                image: url();
-                background-color: transparent;
-                border-radius: 8px;
-                width: 16px;
-                height: 16px;
-            }}
-            QTabBar::close-button:hover {{
-                background-color: #ff4444;
+            QTabBar {{
+                qproperty-drawBase: 0;  /* Clean connection between tabs and pane */
             }}
         """)
     
@@ -248,7 +243,7 @@ class WorkspaceWidget(QWidget):
     """Widget representing a single workspace with tabs"""
     
     session_changed = pyqtSignal()
-    notification_requested = pyqtSignal(str)  # message
+# Notifications removed
     
     def __init__(self, workspace_id: int, workspace_data: WorkspaceData, notepad_toggle_callback: Optional[Callable] = None, parent=None):
         super().__init__(parent)

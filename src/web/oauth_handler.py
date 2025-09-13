@@ -12,7 +12,7 @@ from PyQt6.QtGui import QDesktopServices
 class OAuthHandler(QObject):
     """Minimal OAuth detection and redirection handler"""
     
-    oauth_redirect_requested = pyqtSignal(str, str)  # url, message
+# OAuth notifications removed
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,20 +67,10 @@ class OAuthHandler(QObject):
             success = QDesktopServices.openUrl(qurl)
             
             if success:
-                message = (
-                    "🔒 OAuth authentication opened in your default browser "
-                    "for security. Complete the sign-in there, then return here."
-                )
-                self.oauth_redirect_requested.emit(url, message)
                 return True
             else:
                 # Fallback to Python webbrowser module
                 webbrowser.open(url, new=2)  # new=2 opens in new tab
-                message = (
-                    "🔒 OAuth authentication opened in your browser. "
-                    "Complete the sign-in there, then return here."
-                )
-                self.oauth_redirect_requested.emit(url, message)
                 return True
                 
         except Exception as e:
