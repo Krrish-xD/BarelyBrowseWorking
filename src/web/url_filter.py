@@ -67,10 +67,8 @@ class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
         
         # Block if not allowed
         if not allowed:
-            print(f"🚫 BLOCKED: {host} -> {url_string}")
             info.block(True)
             return
         
         # Allow the request explicitly
-        print(f"✅ ALLOWED: {host} -> {url_string}")
         info.block(False)

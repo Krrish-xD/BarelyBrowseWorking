@@ -60,8 +60,7 @@ class SessionManager:
             
             return True
             
-        except Exception as e:
-            print(f"Error saving sessions: {e}")
+        except Exception:
             return False
     
     def load_sessions(self) -> Dict[int, WorkspaceData]:
@@ -88,8 +87,8 @@ class SessionManager:
                 if notepad_file.exists():
                     try:
                         notepad_content = notepad_file.read_text(encoding='utf-8')
-                    except Exception as e:
-                        print(f"Error loading notepad for workspace {workspace_id}: {e}")
+                    except Exception:
+                        pass  # Use empty notepad content
                 
                 workspaces[workspace_id] = WorkspaceData(
                     name=data.get('name', DEFAULT_WORKSPACE_NAMES[workspace_id]),
@@ -112,8 +111,7 @@ class SessionManager:
             
             return workspaces
             
-        except Exception as e:
-            print(f"Error loading sessions: {e}")
+        except Exception:
             return self._create_default_workspaces()
     
     def _create_default_workspaces(self) -> Dict[int, WorkspaceData]:
@@ -139,6 +137,5 @@ class SessionManager:
             backup_file = self.session_file.with_suffix('.backup.json')
             shutil.copy2(self.session_file, backup_file)
             return True
-        except Exception as e:
-            print(f"Error creating backup: {e}")
+        except Exception:
             return False

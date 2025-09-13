@@ -30,51 +30,32 @@ def setup_environment():
 
 def run_headless_tests() -> bool:
     """Run headless tests for CI/development environments"""
-    print("Running in headless mode - performing self-tests...")
     
     try:
         # Test imports
         from .storage.session_manager import SessionManager
         from .paths import get_app_data_dir, get_sessions_file
         
-        print("✓ All imports successful")
-        
         # Test session manager
         session_manager = SessionManager()
         workspaces = session_manager.load_sessions()
-        print(f"✓ Session manager loaded {len(workspaces)} workspaces")
-        
-        # Test paths
-        app_data_dir = get_app_data_dir()
-        sessions_file = get_sessions_file()
-        print(f"✓ App data directory: {app_data_dir}")
-        print(f"✓ Sessions file: {sessions_file}")
         
         # Test saving/loading
-        if session_manager.save_sessions(workspaces):
-            print("✓ Session save/load test passed")
-        else:
-            print("✗ Session save test failed")
+        if not session_manager.save_sessions(workspaces):
             return False
         
         # Test URL filter (skip if GUI libraries unavailable)
         try:
             from .web.url_filter import ChatGPTUrlFilter
             url_filter = ChatGPTUrlFilter()
-            print("✓ URL filter initialization successful")
         except ImportError:
-            print("○ URL filter test skipped (GUI libraries not available in headless mode)")
-        except Exception as e:
-            print(f"✗ URL filter test failed: {e}")
+            pass  # Expected in headless mode
+        except Exception:
             return False
         
-        print("✓ All headless tests passed!")
         return True
         
-    except Exception as e:
-        print(f"✗ Headless test failed: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         return False
 
 
@@ -84,8 +65,6 @@ def run_minimal_gui_test() -> bool:
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtWebEngineWidgets import QWebEngineView
         from PyQt6.QtCore import QUrl, QTimer
-        
-        print("Running minimal GUI test...")
         
         app = QApplication.instance()
         if app is None:
@@ -103,12 +82,10 @@ def run_minimal_gui_test() -> bool:
         timer.timeout.connect(app.quit)
         timer.start(3000)
         
-        print("✓ QtWebEngine initialized successfully")
         web_view.deleteLater()
         return True
         
-    except Exception as e:
-        print(f"✗ Minimal GUI test failed: {e}")
+    except Exception:
         return False
 
 
@@ -164,15 +141,11 @@ def create_gui_application():
         
         return app.exec()
         
-    except ImportError as e:
-        print(f"GUI libraries not available: {e}")
-        print("This appears to be a headless environment.")
-        print("To run the GUI version, install PyQt6 and run on a system with a display.")
+    except ImportError:
+        print("GUI libraries not available. Install PyQt6 and run on a system with a display.")
         return 1
     except Exception as e:
-        print(f"Error starting GUI application: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error starting application: {e}")
         return 1
 
 
@@ -183,15 +156,10 @@ def main() -> int:
     
     # Check if we should run minimal GUI test
     if "--gui-test" in sys.argv:
-        print(f"ChatGPT Browser - Minimal GUI Test")
-        if run_minimal_gui_test():
-            return 0
-        else:
-            return 1
+        return 0 if run_minimal_gui_test() else 1
     
     # Check if we should run in headless mode
     if is_headless_environment() or "--headless" in sys.argv:
-        print(f"ChatGPT Browser - Headless Mode")
         if run_headless_tests():
             print("\nTo run the GUI version:")
             print("1. Install PyQt6 and QtWebEngine")
