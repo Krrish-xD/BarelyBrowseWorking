@@ -328,93 +328,20 @@ class WorkspaceTabWidget(QTabWidget):
         """)
     
     def setup_corner_widget(self):
-        """Setup corner widget with workspace pill (notepad removed - shortcut only)"""
-        if not self.workspace_name:
-            return
-            
-        # Create container widget for proper alignment
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
-        
-        # Create workspace pill for corner widget
-        pill = QWidget()
-        pill.setObjectName("workspace-pill")
-        
-        # Get tab bar height for proper alignment with fallback
-        tab_bar_height = self.tabBar().sizeHint().height()
-        if tab_bar_height <= 8:  # Fallback for early lifecycle or unusual themes
-            tab_bar_height = 24
-        pill.setFixedHeight(max(20, min(28, tab_bar_height - 4)))  # Robust height calculation
-        pill.setMinimumWidth(100)
-        pill.setMaximumWidth(180)
-        
-        layout = QHBoxLayout(pill)
-        layout.setContentsMargins(16, 6, 16, 6)
-        layout.setSpacing(0)
-        
-        # Workspace name label
-        workspace_label = QLabel(self.workspace_name)
-        workspace_label.setObjectName("workspace-name")
-        workspace_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        layout.addWidget(workspace_label)
-        
-        # Add pill to container with center alignment
-        container_layout.addWidget(pill, 0, Qt.AlignmentFlag.AlignVCenter)
-        
-        # Style the pill with improved design
-        from ..config import COLORS
-        pill.setStyleSheet(f"""
-            QWidget#workspace-pill {{
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 {COLORS['secondary_bg']}, 
-                    stop: 1 #1a1a1a);
-                border: 2px solid {COLORS['accent']};
-                border-radius: 16px;
-                color: {COLORS['text']};
-                min-height: 18px;
-                box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3);
-            }}
-            QLabel {{
-                color: {COLORS['text']};
-                border: none;
-                background: transparent;
-                font-weight: 600;
-                padding: 2px 4px;
-            }}
-        """)
-        
-        # Set as corner widget (top-right)
-        self.setCornerWidget(container, Qt.Corner.TopRightCorner)
+        """Setup corner widget (workspace pill removed - name shown in window title instead)"""
+        # No corner widget needed - workspace name is shown in window title
+        pass
     
     def update_workspace_name(self, name: str, workspace_data=None):
-        """Update the workspace name displayed in corner widget"""
+        """Update the workspace name and apply theme"""
         self.workspace_name = name
-        corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
-        if corner_widget:
-            # Find the pill widget inside the container
-            pill = corner_widget.findChild(QWidget, "workspace-pill")
-            if pill:
-                label = pill.findChild(QLabel, "workspace-name")
-                if label:
-                    label.setText(name)
         
         # Apply workspace theme if data provided
         if workspace_data:
             self.apply_workspace_theme(workspace_data)
     
     def apply_workspace_theme(self, workspace_data: 'WorkspaceData'):
-        """Apply custom workspace color theme to pill and tabs"""
-        corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
-        if not corner_widget:
-            return
-            
-        # Find the pill widget inside the container
-        pill = corner_widget.findChild(QWidget, "workspace-pill")
-        if not pill:
-            return
-            
+        """Apply custom workspace color theme to header and tabs"""
         from ..config import COLORS
         
         # Use custom color if available, otherwise default
@@ -425,32 +352,6 @@ class WorkspaceTabWidget(QTabWidget):
         else:
             accent_color = COLORS['accent']
             hover_color = '#4c4c4c'
-        
-        # Create gradient colors for pill
-        darker_accent = self._darken_color(accent_color, 0.3)
-        lighter_accent = self._lighten_color(accent_color, 0.1)
-        
-        # Apply theme to workspace pill with gradient
-        pill.setStyleSheet(f"""
-            QWidget#workspace-pill {{
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 {lighter_accent}, 
-                    stop: 0.6 {accent_color},
-                    stop: 1 {darker_accent});
-                border: 2px solid {accent_color};
-                border-radius: 16px;
-                color: white;
-                min-height: 18px;
-                box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3);
-            }}
-            QLabel {{
-                color: white;
-                border: none;
-                background: transparent;
-                font-weight: 600;
-                padding: 2px 4px;
-            }}
-        """)
         
         # Create gradient colors for header and tabs
         header_gradient_start = self._lighten_color(accent_color, 0.2)
