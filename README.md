@@ -39,7 +39,7 @@ A minimal Python-based desktop browser exclusively for ChatGPT.com with advanced
 
 #### Workspace & Features
 - `Ctrl+Shift+K`: Toggle notepad
-- `Ctrl+Shift+1-4`: Switch to workspace 1-4
+- `Ctrl+Shift+1-5`: Switch to workspace 1-5
 
 ## Installation & Usage
 

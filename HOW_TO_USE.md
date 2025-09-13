@@ -86,7 +86,7 @@ To share with others:
 
 ### Workspace Management
 - **4 Independent Workspaces**: Each supports different ChatGPT accounts
-- **Switch Workspaces**: Use `Ctrl+Shift+1` through `Ctrl+Shift+4`
+- **Switch Workspaces**: Use `Ctrl+Shift+1` through `Ctrl+Shift+5`
 - **Rename Workspaces**: Right-click on workspace buttons
 
 ### Tab Management

@@ -5,7 +5,7 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 # Application info
-app_name = "ChatGPTBrowser"
+app_name = "MIG"
 main_script = "main.py"
 
 # Paths
