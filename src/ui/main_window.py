@@ -100,6 +100,9 @@ class MainWindow(QMainWindow):
         self.setup_shortcuts()
         self.load_sessions()
         self.setup_style()
+        
+        # Set initial window title with current workspace
+        self.update_window_title()
     
     def setup_ui(self):
         """Setup the main UI"""
@@ -118,51 +121,21 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Workspace switcher
-        self.setup_workspace_switcher(layout)
-        
-        # Main content area with workspaces
+        # Main content area with workspaces (no header)
         self.workspace_stack = QStackedWidget()
         layout.addWidget(self.workspace_stack)
+        
+        # Store workspace names for minimal display
+        self.workspace_names = [f"Workspace {i+1}" for i in range(NUM_WORKSPACES)]
     
-    def setup_workspace_switcher(self, parent_layout):
-        """Setup workspace switcher UI"""
-        switcher_frame = QFrame()
-        switcher_frame.setFixedHeight(50)
-        switcher_layout = QHBoxLayout(switcher_frame)
-        switcher_layout.setContentsMargins(10, 5, 10, 5)
-        
-        # Workspace buttons
-        self.workspace_buttons = []
-        for i in range(NUM_WORKSPACES):
-            btn = QPushButton(f"Workspace {i+1}")
-            btn.setCheckable(True)
-            btn.clicked.connect(lambda checked, workspace_id=i: self.switch_workspace(workspace_id))
-            btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            btn.customContextMenuRequested.connect(
-                lambda pos, workspace_id=i: self.show_workspace_context_menu(workspace_id, pos)
-            )
-            self.workspace_buttons.append(btn)
-            switcher_layout.addWidget(btn)
-        
-        # Set first workspace as active
-        self.workspace_buttons[0].setChecked(True)
-        
-        switcher_layout.addStretch()
-        
-        # Notepad toggle button
-        self.notepad_toggle_btn = QPushButton()
-        assets_dir = get_assets_dir()
-        notepad_icon_path = assets_dir / "notepad.png"
-        if notepad_icon_path.exists():
-            self.notepad_toggle_btn.setIcon(QIcon(str(notepad_icon_path)))
-        else:
-            self.notepad_toggle_btn.setText("📝")
-        self.notepad_toggle_btn.setFixedSize(30, 30)
-        self.notepad_toggle_btn.clicked.connect(self.toggle_current_notepad)
-        switcher_layout.addWidget(self.notepad_toggle_btn)
-        
-        parent_layout.addWidget(switcher_frame)
+    def get_current_workspace_name(self) -> str:
+        """Get the name of the current workspace"""
+        return self.workspace_names[self.current_workspace]
+    
+    def update_window_title(self):
+        """Update window title with current workspace name"""
+        workspace_name = self.get_current_workspace_name()
+        self.setWindowTitle(f"ChatGPT Browser - {workspace_name}")
     
     def setup_shortcuts(self):
         """Setup keyboard shortcuts"""
@@ -222,7 +195,7 @@ class MainWindow(QMainWindow):
         
         for workspace_id, data in workspace_data.items():
             # Create workspace widget
-            workspace_widget = WorkspaceWidget(workspace_id, data, self)
+            workspace_widget = WorkspaceWidget(workspace_id, data, self.toggle_current_notepad, self)
             workspace_widget.session_changed.connect(self.save_sessions)
             self.workspaces[workspace_id] = workspace_widget
             
@@ -240,6 +213,7 @@ class MainWindow(QMainWindow):
             layout.setContentsMargins(0, 0, 0, 0)
             
             splitter = QSplitter(Qt.Orientation.Vertical)
+            splitter.setObjectName("main-splitter")
             splitter.addWidget(workspace_widget)
             splitter.addWidget(notepad_widget)
             splitter.setSizes([800, 0])  # Hide notepad initially
@@ -253,9 +227,9 @@ class MainWindow(QMainWindow):
             layout.addWidget(splitter)
             self.workspace_stack.addWidget(combined_widget)
             
-            # Update button text with workspace name
-            if workspace_id < len(self.workspace_buttons):
-                self.workspace_buttons[workspace_id].setText(data.name)
+            # Update workspace name
+            if workspace_id < len(self.workspace_names):
+                self.workspace_names[workspace_id] = data.name
     
     def save_sessions(self):
         """Save current workspace sessions"""
@@ -282,35 +256,32 @@ class MainWindow(QMainWindow):
         # Save current workspace session
         self.save_sessions()
         
-        # Update buttons
-        for i, btn in enumerate(self.workspace_buttons):
-            btn.setChecked(i == workspace_id)
-        
         # Switch workspace
         self.current_workspace = workspace_id
         self.workspace_stack.setCurrentIndex(workspace_id)
+        
+        # Update window title to show current workspace
+        self.update_window_title()
     
     def show_workspace_context_menu(self, workspace_id: int, pos):
-        """Show context menu for workspace renaming"""
-        menu = QMenu(self)
-        rename_action = menu.addAction("Rename Workspace")
-        if rename_action:
-            rename_action.triggered.connect(lambda: self.rename_workspace(workspace_id))
-        
-        button = self.workspace_buttons[workspace_id]
-        menu.exec(button.mapToGlobal(pos))
+        """Show context menu for workspace renaming - not used in minimal UI"""
+        # Context menu functionality removed in minimal design
+        pass
     
     def rename_workspace(self, workspace_id: int):
         """Rename a workspace"""
-        current_name = self.workspace_buttons[workspace_id].text()
+        current_name = self.workspace_names[workspace_id]
         dialog = WorkspaceRenameDialog(current_name, self)
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_name = dialog.get_name()
             if new_name:
-                self.workspace_buttons[workspace_id].setText(new_name)
+                self.workspace_names[workspace_id] = new_name
                 if workspace_id in self.workspaces:
                     self.workspaces[workspace_id].workspace_data.name = new_name
+                # Update window title if this is the current workspace
+                if workspace_id == self.current_workspace:
+                    self.setWindowTitle(f"ChatGPT Browser - {new_name}")
                 self.save_sessions()
     
     def get_current_workspace(self) -> Optional[WorkspaceWidget]:
@@ -385,7 +356,7 @@ class MainWindow(QMainWindow):
             # Get the splitter from the current workspace
             current_widget = self.workspace_stack.currentWidget()
             if current_widget:
-                splitter = current_widget.findChild(QSplitter)
+                splitter = current_widget.findChild(QSplitter, "main-splitter")
                 if splitter:
                     if show is None:
                         show = not notepad.isVisible()

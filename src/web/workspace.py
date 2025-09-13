@@ -3,9 +3,10 @@ Web workspace management with isolated QtWebEngine profiles
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Callable
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QHBoxLayout, QLabel, QPushButton, QFrame
+from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEnginePage
 
@@ -70,13 +71,18 @@ class WorkspaceTabWidget(QTabWidget):
     tab_close_requested = pyqtSignal(int)
     new_tab_requested = pyqtSignal()
     
-    def __init__(self, parent=None):
+    def __init__(self, workspace_name: str = "", notepad_toggle_callback: Optional[Callable] = None, parent=None):
         super().__init__(parent)
         self.setTabsClosable(True)
         self.setMovable(True)
         self.setDocumentMode(True)
         self.tabCloseRequested.connect(self.tab_close_requested.emit)
+        
+        self.workspace_name = workspace_name
+        self.notepad_toggle_callback = notepad_toggle_callback
+        
         self.setup_style()
+        self.setup_corner_widget()
     
     def setup_style(self):
         """Apply dark theme styling to tabs"""
@@ -114,6 +120,45 @@ class WorkspaceTabWidget(QTabWidget):
                 background-color: #ff4444;
             }}
         """)
+    
+    def setup_corner_widget(self):
+        """Setup corner widget with workspace name and notepad toggle"""
+        if not self.workspace_name:
+            return
+            
+        corner_widget = QFrame()
+        corner_widget.setObjectName("workspace-corner-widget")
+        
+        layout = QHBoxLayout(corner_widget)
+        layout.setContentsMargins(8, 2, 8, 2)
+        layout.setSpacing(8)
+        
+        # Workspace name label
+        workspace_label = QLabel(self.workspace_name)
+        workspace_label.setObjectName("workspace-name")
+        workspace_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        layout.addWidget(workspace_label)
+        
+        # Notepad toggle button
+        if self.notepad_toggle_callback:
+            notepad_btn = QPushButton("📝")
+            notepad_btn.setObjectName("notepad-toggle")
+            notepad_btn.setFixedSize(20, 20)
+            notepad_btn.setToolTip("Toggle Notepad (Ctrl+Shift+K)")
+            notepad_btn.clicked.connect(self.notepad_toggle_callback)
+            layout.addWidget(notepad_btn)
+        
+        # Set as corner widget (top-right)
+        self.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
+    
+    def update_workspace_name(self, name: str):
+        """Update the workspace name displayed in corner widget"""
+        self.workspace_name = name
+        corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
+        if corner_widget:
+            label = corner_widget.findChild(QLabel, "workspace-name")
+            if label:
+                label.setText(name)
 
 
 class WorkspaceWidget(QWidget):
@@ -121,10 +166,11 @@ class WorkspaceWidget(QWidget):
     
     session_changed = pyqtSignal()
     
-    def __init__(self, workspace_id: int, workspace_data: WorkspaceData, parent=None):
+    def __init__(self, workspace_id: int, workspace_data: WorkspaceData, notepad_toggle_callback: Optional[Callable] = None, parent=None):
         super().__init__(parent)
         self.workspace_id = workspace_id
         self.workspace_data = workspace_data
+        self.notepad_toggle_callback = notepad_toggle_callback
         self.web_views: List[ChatGPTWebView] = []
         self.closed_tabs: List[TabData] = []  # For tab restoration
         
@@ -170,8 +216,9 @@ class WorkspaceWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Tab widget for web views
-        self.tab_widget = WorkspaceTabWidget()
+        # Tab widget for web views with workspace info
+        workspace_name = self.workspace_data.name if self.workspace_data else f"Workspace {self.workspace_id + 1}"
+        self.tab_widget = WorkspaceTabWidget(workspace_name, self.notepad_toggle_callback)
         self.tab_widget.tab_close_requested.connect(self.close_tab)
         self.tab_widget.new_tab_requested.connect(self.new_tab)
         self.tab_widget.currentChanged.connect(self._on_tab_changed)

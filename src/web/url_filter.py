@@ -5,8 +5,6 @@ URL filtering to restrict navigation to ChatGPT domains only
 from PyQt6.QtCore import QObject, QUrl
 from PyQt6.QtWebEngineCore import QWebEngineUrlRequestInterceptor, QWebEngineUrlRequestInfo
 
-from ..config import CHATGPT_URL
-
 
 class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
     """URL filter to restrict navigation to ChatGPT domains only"""
@@ -23,12 +21,17 @@ class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
             'static.openai.com',
             'api.openai.com',
             'files.oaiusercontent.com',
+            # CRITICAL: Main ChatGPT CDN for CSS/JS resources
+            'cdn.oaistatic.com',
+            'oaistatic.com',
             # Specific CDN subdomains that ChatGPT actually uses
             'cdnjs.cloudflare.com',
             'chat.openai.com.cdn.cloudflare.net',
             # Required for OAuth and essential functionality
             'openaiapi-site.azureedge.net',
-            'openaicomproductionae4b.blob.core.windows.net'
+            'openaicomproductionae4b.blob.core.windows.net',
+            # Additional voice features
+            'chatgpt.livekit.cloud'
         }
         
         # Allowed URL patterns for specific resources
@@ -64,5 +67,6 @@ class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
             info.block(True)
             return
         
-        # Allow the request
+        # Allow the request explicitly
+        print(f"Allowed navigation to: {url_string}")
         info.block(False)
