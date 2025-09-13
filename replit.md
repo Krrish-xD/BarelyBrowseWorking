@@ -14,7 +14,7 @@ Preferred communication style: Simple, everyday language.
 - **Current Mode**: Running in headless mode for Replit environment compatibility
 - **GUI Limitations**: Full GUI mode requires complete Qt6/QtWebEngine system dependencies not available in this environment
 - **Core Functionality**: Session management, workspace isolation, and data persistence all work perfectly in headless mode
-- **Local GUI**: For full desktop GUI experience, run locally with `python main.py --gui` on systems with proper Qt6 dependencies
+- **Local GUI**: For full desktop GUI experience, clone locally, install GUI dependencies with `pip install .[gui]`, then run `python main.py --gui`
 
 ### Frontend Architecture
 - **UI Framework**: PyQt6-based desktop application with QtWebEngine for web rendering

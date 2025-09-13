@@ -114,6 +114,20 @@ def run_minimal_gui_test() -> bool:
 
 def create_gui_application():
     """Create and run the GUI application"""
+    # Safety check for Replit environment
+    if "REPLIT" in os.environ or "REPL_ID" in os.environ:
+        if not os.environ.get("ALLOW_UNSAFE_GUI"):
+            print("ERROR: GUI mode is not supported in the Replit environment.")
+            print("This is due to missing system dependencies for Qt6/QtWebEngine.")
+            print("To run the GUI version:")
+            print("1. Clone this project locally")
+            print("2. Install GUI dependencies: pip install .[gui]")
+            print("3. Run: python main.py --gui")
+            print("")
+            print("The headless mode works perfectly and provides all core functionality.")
+            print("Run: python main.py --headless")
+            return 1
+    
     try:
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import Qt
