@@ -551,6 +551,8 @@ class WorkspaceWidget(QWidget):
         self.tab_widget.tab_close_requested.connect(self.close_tab)
         self.tab_widget.new_tab_requested.connect(self.new_tab)
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
+        # Handle tab reordering to keep workspace data in sync
+        self.tab_widget.tabBar().tabMoved.connect(self._on_tab_moved)
         
         layout.addWidget(self.tab_widget)
     
@@ -618,6 +620,15 @@ class WorkspaceWidget(QWidget):
             # Update the URL in the stored tab data
             self.workspace_data.tabs[index].url = url
             # Mark session as changed for next save
+            self.session_changed.emit()
+    
+    def _on_tab_moved(self, from_index: int, to_index: int):
+        """Handle tab reordering to keep workspace data in sync"""
+        if 0 <= from_index < len(self.workspace_data.tabs) and 0 <= to_index < len(self.workspace_data.tabs):
+            # Move the TabData to match the UI reordering
+            tab_data = self.workspace_data.tabs.pop(from_index)
+            self.workspace_data.tabs.insert(to_index, tab_data)
+            # Mark session as changed
             self.session_changed.emit()
     
     def close_tab(self, index: int):
