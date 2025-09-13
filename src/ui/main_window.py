@@ -19,7 +19,7 @@ from ..web.workspace import WorkspaceWidget
 from .notepad import NotepadWidget
 # Notifications removed as requested
 from .memory_manager import MemoryManager
-from .animated_widgets import AnimatedStackedWidget, SplitterAnimator
+# Removed animated widgets to eliminate workspace switching artifacts
 
 
 class WorkspaceRenameDialog(QDialog):
@@ -164,8 +164,7 @@ class MainWindow(QMainWindow):
         self.memory_manager.workspace_needs_loading.connect(self._handle_workspace_loading)
         self.memory_manager.compress_workspace_signal.connect(self._compress_workspace)
         
-        # Splitter animator for smooth notepad transitions
-        self.splitter_animator = SplitterAnimator(self)
+        # Animations removed to eliminate artifacts
         
         # Auto-save timer
         self.autosave_timer = QTimer()
@@ -204,8 +203,8 @@ class MainWindow(QMainWindow):
         content_layout = QVBoxLayout(content_container)
         content_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Main content area with workspaces (no header) - using animated version
-        self.workspace_stack = AnimatedStackedWidget()
+        # Main content area with workspaces (instant switching)
+        self.workspace_stack = QStackedWidget()
         content_layout.addWidget(self.workspace_stack)
         
         # Workspace pill now handled by individual tab widgets
@@ -542,7 +541,7 @@ class MainWindow(QMainWindow):
             workspace.navigate_forward()
     
     def toggle_current_notepad(self, show: Optional[bool] = None):
-        """Toggle notepad for current workspace with smooth animation"""
+        """Toggle notepad for current workspace instantly (animations removed)"""
         notepad = self.get_current_notepad()
         if notepad:
             # Get the splitter from the current workspace
@@ -560,17 +559,12 @@ class MainWindow(QMainWindow):
                     
                     if show:
                         notepad.show()
-                        # Animate to show notepad with proportional sizing
-                        self.splitter_animator.animate_to_sizes(splitter, [main_height, notepad_height])
+                        # Instantly set sizes for show - no animation
+                        splitter.setSizes([main_height, notepad_height])
                     else:
-                        # Animate to hide notepad, with one-time callback
-                        def hide_after_animation():
-                            notepad.hide()
-                            # Disconnect this specific callback
-                            self.splitter_animator.animation_finished.disconnect(hide_after_animation)
-                        
-                        self.splitter_animator.animation_finished.connect(hide_after_animation)
-                        self.splitter_animator.animate_to_sizes(splitter, [total_height, 0])
+                        # Instantly hide notepad - no animation
+                        splitter.setSizes([total_height, 0])
+                        notepad.hide()
                     
                     self._mark_session_dirty()
                     self.save_sessions()
