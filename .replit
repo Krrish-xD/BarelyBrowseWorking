@@ -16,14 +16,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Test Headless"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "ChatGPT Browser"
+args = "ChatGPT Browser (Headless)"
 
 [[workflows.workflow]]
-name = "Test Headless"
+name = "ChatGPT Browser (Headless)"
 author = "agent"
 
 [[workflows.workflow.tasks]]
@@ -32,14 +28,3 @@ args = "python main.py --headless"
 
 [workflows.workflow.metadata]
 outputType = "console"
-
-[[workflows.workflow]]
-name = "ChatGPT Browser"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --gui"
-
-[workflows.workflow.metadata]
-outputType = "vnc"

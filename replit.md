@@ -10,6 +10,12 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
+### Runtime Environment - Replit Setup
+- **Current Mode**: Running in headless mode for Replit environment compatibility
+- **GUI Limitations**: Full GUI mode requires complete Qt6/QtWebEngine system dependencies not available in this environment
+- **Core Functionality**: Session management, workspace isolation, and data persistence all work perfectly in headless mode
+- **Local GUI**: For full desktop GUI experience, run locally with `python main.py --gui` on systems with proper Qt6 dependencies
+
 ### Frontend Architecture
 - **UI Framework**: PyQt6-based desktop application with QtWebEngine for web rendering
 - **Window Management**: Single main window with tabbed interface and workspace switching
@@ -53,8 +59,9 @@ Preferred communication style: Simple, everyday language.
 
 ### System Integration
 - **Cross-Platform Support**: Windows (APPDATA), macOS (Library/Application Support), Linux (XDG_DATA_HOME)
-- **Headless Environment**: CI/testing support with sandbox configuration
+- **Headless Environment**: CI/testing support with sandbox configuration - currently active on Replit
 - **Standard Paths**: Qt's QStandardPaths for platform-appropriate data directories
+- **Replit Workflow**: Configured to run headless self-tests and verify core functionality
 
 ### Web Dependencies
 - **Allowed Domains**: Restricted to chatgpt.com and essential OpenAI subdomains (auth0.openai.com, cdn.openai.com, static.openai.com, api.openai.com)
