@@ -220,9 +220,6 @@ class MainWindow(QMainWindow):
             workspace_widget = WorkspaceWidget(workspace_id, data, self.toggle_current_notepad, self)
             workspace_widget.session_changed.connect(self._mark_session_dirty)
             
-            # Connect URL blocking notifications
-            if hasattr(workspace_widget, 'url_filter'):
-                workspace_widget.url_filter.url_blocked.connect(self._on_url_blocked)
             
             self.workspaces[workspace_id] = workspace_widget
             
@@ -270,10 +267,6 @@ class MainWindow(QMainWindow):
         """Mark notepad data as dirty (needs saving)"""
         self.notepad_dirty = True
     
-    def _on_url_blocked(self, domain: str):
-        """Handle URL blocking notification"""
-        message = f"🚫 Navigation blocked: {domain}\nOnly ChatGPT-related domains are allowed."
-        self.notification_widget.show_notification(message, 4000)
     
     def save_sessions(self):
         """Save current workspace sessions (optimized with change detection)"""

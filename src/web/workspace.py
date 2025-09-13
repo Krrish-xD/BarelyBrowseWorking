@@ -13,7 +13,6 @@ from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEng
 from ..config import CHATGPT_URL
 from ..paths import get_workspace_profile_dir
 from ..storage.session_manager import TabData, WorkspaceData
-from .url_filter import ChatGPTUrlFilter
 
 
 class ChatGPTWebView(QWebEngineView):
@@ -224,12 +223,7 @@ class WorkspaceWidget(QWidget):
         # Set HTTP cache type for better memory management
         profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.DiskHttpCache)
         
-        # Install URL filter to restrict to ChatGPT domains only
-        url_filter = ChatGPTUrlFilter(self)
-        profile.setUrlRequestInterceptor(url_filter)
-        
-        # Connect URL blocking notification (if parent is main window)
-        self.url_filter = url_filter  # Store reference for access
+        # No URL filtering - allow all domains
         
         return profile
     
