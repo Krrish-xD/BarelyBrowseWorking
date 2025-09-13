@@ -332,10 +332,21 @@ class WorkspaceTabWidget(QTabWidget):
         if not self.workspace_name:
             return
             
+        # Create container widget for proper alignment
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        
         # Create workspace pill for corner widget
         pill = QWidget()
         pill.setObjectName("workspace-pill")
-        pill.setFixedHeight(28)
+        
+        # Get tab bar height for proper alignment with fallback
+        tab_bar_height = self.tabBar().sizeHint().height()
+        if tab_bar_height <= 8:  # Fallback for early lifecycle or unusual themes
+            tab_bar_height = 24
+        pill.setFixedHeight(max(20, min(28, tab_bar_height - 4)))  # Robust height calculation
         pill.setMinimumWidth(100)
         pill.setMaximumWidth(180)
         
@@ -348,6 +359,9 @@ class WorkspaceTabWidget(QTabWidget):
         workspace_label.setObjectName("workspace-name")
         workspace_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         layout.addWidget(workspace_label)
+        
+        # Add pill to container with center alignment
+        container_layout.addWidget(pill, 0, Qt.AlignmentFlag.AlignVCenter)
         
         # Style the pill to match main window pill design
         from ..config import COLORS
@@ -366,16 +380,19 @@ class WorkspaceTabWidget(QTabWidget):
         """)
         
         # Set as corner widget (top-right)
-        self.setCornerWidget(pill, Qt.Corner.TopRightCorner)
+        self.setCornerWidget(container, Qt.Corner.TopRightCorner)
     
     def update_workspace_name(self, name: str, workspace_data=None):
         """Update the workspace name displayed in corner widget"""
         self.workspace_name = name
         corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
         if corner_widget:
-            label = corner_widget.findChild(QLabel, "workspace-name")
-            if label:
-                label.setText(name)
+            # Find the pill widget inside the container
+            pill = corner_widget.findChild(QWidget, "workspace-pill")
+            if pill:
+                label = pill.findChild(QLabel, "workspace-name")
+                if label:
+                    label.setText(name)
         
         # Apply workspace theme if data provided
         if workspace_data:
@@ -385,6 +402,11 @@ class WorkspaceTabWidget(QTabWidget):
         """Apply custom workspace color theme to pill and tabs"""
         corner_widget = self.cornerWidget(Qt.Corner.TopRightCorner)
         if not corner_widget:
+            return
+            
+        # Find the pill widget inside the container
+        pill = corner_widget.findChild(QWidget, "workspace-pill")
+        if not pill:
             return
             
         from ..config import COLORS
@@ -399,7 +421,7 @@ class WorkspaceTabWidget(QTabWidget):
             hover_color = '#4c4c4c'
         
         # Apply theme to workspace pill
-        corner_widget.setStyleSheet(f"""
+        pill.setStyleSheet(f"""
             QWidget#workspace-pill {{
                 background-color: {COLORS['secondary_bg']};
                 border: 2px solid {accent_color};

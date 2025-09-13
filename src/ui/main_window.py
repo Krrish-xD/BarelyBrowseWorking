@@ -246,7 +246,7 @@ class MainWindow(QMainWindow):
                     if color_changed:
                         workspace_widget.workspace_data.color = new_color
                         # Apply the new color theme immediately
-                        workspace_widget.update_workspace_name(
+                        workspace_widget.tab_widget.update_workspace_name(
                             workspace_widget.workspace_data.name, 
                             workspace_widget.workspace_data
                         )
