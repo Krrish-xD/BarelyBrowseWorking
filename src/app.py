@@ -44,14 +44,8 @@ def run_headless_tests() -> bool:
         if not session_manager.save_sessions(workspaces):
             return False
         
-        # Test URL filter (skip if GUI libraries unavailable)
-        try:
-            from .web.url_filter import ChatGPTUrlFilter
-            url_filter = ChatGPTUrlFilter()
-        except ImportError:
-            pass  # Expected in headless mode
-        except Exception:
-            return False
+        # URL filtering is now handled by SecurityInterceptor in workspace.py
+        # No separate testing needed here
         
         return True
         
