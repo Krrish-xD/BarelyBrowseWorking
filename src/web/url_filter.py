@@ -15,8 +15,12 @@ class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
         # Allowed domains for ChatGPT functionality (minimal and specific)
         self.allowed_domains = {
             'chatgpt.com',
-            # Essential OpenAI subdomains only (no broad openai.com)
+            # Complete OAuth/Auth domains for login flows
             'auth0.openai.com',
+            'auth.openai.com', 
+            'login.openai.com',
+            'openai.auth0.com',
+            # Essential OpenAI API and CDN domains
             'cdn.openai.com', 
             'static.openai.com',
             'api.openai.com',
@@ -63,10 +67,10 @@ class ChatGPTUrlFilter(QWebEngineUrlRequestInterceptor):
         
         # Block if not allowed
         if not allowed:
-            print(f"Blocked navigation to: {url_string}")
+            print(f"🚫 BLOCKED: {host} -> {url_string}")
             info.block(True)
             return
         
         # Allow the request explicitly
-        print(f"Allowed navigation to: {url_string}")
+        print(f"✅ ALLOWED: {host} -> {url_string}")
         info.block(False)
