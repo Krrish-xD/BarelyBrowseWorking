@@ -16,15 +16,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "ChatGPT Browser"
+args = "Test Headless"
 
 [[workflows.workflow]]
-name = "ChatGPT Browser"
+name = "Test Headless"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "python main.py --headless"
 
 [workflows.workflow.metadata]
 outputType = "console"

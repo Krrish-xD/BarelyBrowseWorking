@@ -1,0 +1,89 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyQt6 PyQt6-WebEngine pyinstaller
+    
+    - name: Test application (headless)
+      run: |
+        python main.py --headless
+    
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --clean --distpath dist --workpath build chatgpt-browser.spec
+    
+    - name: Test executable (headless)
+      run: |
+        .\dist\ChatGPTBrowser\ChatGPTBrowser.exe --headless
+    
+    - name: Verify QtWebEngine resources
+      run: |
+        # Verify essential DLLs and executables
+        if (!(Test-Path "dist\ChatGPTBrowser\Qt6WebEngineCore.dll")) { throw "Qt6WebEngineCore.dll missing" }
+        if (!(Test-Path "dist\ChatGPTBrowser\QtWebEngineProcess.exe")) { throw "QtWebEngineProcess.exe missing" }
+        
+        # Verify essential resource files
+        if (!(Test-Path "dist\ChatGPTBrowser\qtwebengine_resources.pak")) { throw "qtwebengine_resources.pak missing" }
+        if (!(Test-Path "dist\ChatGPTBrowser\qtwebengine_devtools_resources.pak")) { throw "qtwebengine_devtools_resources.pak missing" }
+        if (!(Test-Path "dist\ChatGPTBrowser\icudtl.dat")) { throw "icudtl.dat missing" }
+        if (!(Test-Path "dist\ChatGPTBrowser\locales")) { throw "locales directory missing" }
+        
+        # Count locale files
+        $localeCount = (Get-ChildItem "dist\ChatGPTBrowser\locales" -Filter "*.pak").Count
+        if ($localeCount -lt 10) { throw "Insufficient locale files ($localeCount found, expected 10+)" }
+        
+        Write-Host "✓ All QtWebEngine resources verified ($localeCount locale files found)"
+    
+    - name: GUI smoke test (brief)
+      run: |
+        # Start the GUI app and kill it after 10 seconds (smoke test)
+        $process = Start-Process -FilePath ".\dist\ChatGPTBrowser\ChatGPTBrowser.exe" -PassThru
+        Start-Sleep -Seconds 10
+        if (!$process.HasExited) {
+          Stop-Process -Id $process.Id -Force
+          Write-Host "✓ GUI started successfully (killed after 10s)"
+        } else {
+          Write-Host "✗ GUI process exited unexpectedly"
+          exit 1
+        }
+    
+    - name: Create release archive
+      run: |
+        cd dist
+        Compress-Archive -Path ChatGPTBrowser -DestinationPath ChatGPTBrowser-windows.zip
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ChatGPTBrowser-windows
+        path: dist/ChatGPTBrowser-windows.zip
+    
+    - name: Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/ChatGPTBrowser-windows.zip
+        draft: false
+        prerelease: false
