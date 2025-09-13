@@ -60,8 +60,14 @@ class ChatGPTWebView(QWebEngineView):
     
     def closeEvent(self, a0):
         """Clean up resources when closing"""
-        if hasattr(self, 'page_obj'):
+        # Clean up page resources
+        if hasattr(self, 'page_obj') and self.page_obj:
             self.page_obj.deleteLater()
+        
+        # Clear any cached URL history to free memory
+        history = self.history()
+        if history:
+            history.clear()
         super().closeEvent(a0)
 
 
@@ -173,6 +179,7 @@ class WorkspaceWidget(QWidget):
         self.notepad_toggle_callback = notepad_toggle_callback
         self.web_views: List[ChatGPTWebView] = []
         self.closed_tabs: List[TabData] = []  # For tab restoration
+        self.max_closed_tabs = 10  # Limit memory usage from closed tabs
         
         # Create single shared profile for this workspace
         self.workspace_profile = self._create_workspace_profile()
@@ -200,10 +207,22 @@ class WorkspaceWidget(QWidget):
         if settings:
             settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
             settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
-            settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, True)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)  # Disable plugins for memory efficiency
             settings.setAttribute(QWebEngineSettings.WebAttribute.AutoLoadImages, True)
             settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
             settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+            
+            # Memory optimization settings
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)  # Disable WebGL for memory savings
+            settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)  # Reduce GPU memory usage
+        
+        # Configure memory-efficient cache settings
+        # Set cache size limits to prevent excessive memory/disk usage
+        profile.setHttpCacheMaximumSize(50 * 1024 * 1024)  # 50MB cache limit
+        
+        # Set HTTP cache type for better memory management
+        profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.DiskHttpCache)
         
         # Install URL filter to restrict to ChatGPT domains only
         url_filter = ChatGPTUrlFilter(self)
@@ -236,6 +255,10 @@ class WorkspaceWidget(QWidget):
     
     def add_tab(self, url: str = CHATGPT_URL) -> int:
         """Add a new tab with ChatGPT"""
+        # Check if we have too many tabs (memory protection)
+        if len(self.web_views) >= 15:  # Limit tabs per workspace for memory efficiency
+            return self.tab_widget.currentIndex()  # Return current tab instead of failing
+            
         web_view = ChatGPTWebView(self.workspace_id, self.workspace_profile)
         web_view.load(QUrl(url))
         
@@ -263,16 +286,23 @@ class WorkspaceWidget(QWidget):
         
         web_view = self.tab_widget.widget(index)
         if isinstance(web_view, ChatGPTWebView):
-            # Save tab data for restoration
+            # Save tab data for restoration (with memory limit)
             self.closed_tabs.append(TabData(
                 url=web_view.url().toString(),
                 title=self.tab_widget.tabText(index)
             ))
             
+            # Limit closed tabs to prevent memory leak
+            if len(self.closed_tabs) > self.max_closed_tabs:
+                self.closed_tabs.pop(0)  # Remove oldest closed tab
+            
             # Remove from lists
             if web_view in self.web_views:
                 self.web_views.remove(web_view)
             
+            # Clean up web view resources
+            # Note: Don't clear HTTP cache here as it's shared across workspace tabs
+                
             # Close tab
             self.tab_widget.removeTab(index)
             web_view.deleteLater()
@@ -335,6 +365,18 @@ class WorkspaceWidget(QWidget):
     
     def cleanup(self):
         """Clean up resources"""
+        # Clear closed tabs to free memory
+        self.closed_tabs.clear()
+        
+        # Clean up web views
         for web_view in self.web_views:
+            # Force cleanup of web engine resources
+            if hasattr(web_view, 'page_obj') and web_view.page_obj:
+                web_view.page_obj.deleteLater()
             web_view.deleteLater()
         self.web_views.clear()
+        
+        # Clean up profile resources
+        if hasattr(self, 'workspace_profile'):
+            self.workspace_profile.clearAllVisitedLinks()
+            self.workspace_profile.clearHttpCache()
